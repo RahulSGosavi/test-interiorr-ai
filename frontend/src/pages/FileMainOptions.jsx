@@ -66,22 +66,22 @@ const FileMainOptions = () => {
     <div className="min-h-screen h-screen w-full overflow-auto flex flex-col" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe, #fae8ff)' }}>
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10 flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate(-1)} data-testid="back-button">
-              <ArrowLeft className="w-5 h-5" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} data-testid="back-button" className="h-7 w-7 p-0">
+              <ArrowLeft className="w-3.5 h-3.5" />
             </Button>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {file?.file_type === 'pdf' ? (
-                <FileText className="w-8 h-8 text-blue-600" />
+                <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
               ) : (
-                <FileSpreadsheet className="w-8 h-8 text-green-600" />
+                <FileSpreadsheet className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
               )}
               <div>
-                <h1 className="text-2xl font-semibold" data-testid="file-title">
+                <h1 className="text-sm sm:text-base font-semibold truncate max-w-[200px] sm:max-w-none" data-testid="file-title">
                   {file?.name}
                 </h1>
-                <p className="text-sm text-gray-500">Choose an action below</p>
+                <p className="text-[10px] sm:text-xs text-gray-500">Choose an action below</p>
               </div>
             </div>
           </div>
@@ -89,20 +89,20 @@ const FileMainOptions = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 lg:px-6 py-6 sm:py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-4xl text-center mb-4 font-semibold">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl text-center mb-3 sm:mb-4 font-semibold">
             What would you like to do?
           </h2>
-          <p className="text-center text-gray-600 mb-12 text-lg">
+          <p className="text-center text-gray-600 mb-6 sm:mb-8 text-xs sm:text-sm lg:text-base">
             Select one of the powerful features below
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 max-w-6xl mx-auto">
             {options.map((option, index) => (
               <motion.div
                 key={option.id}
@@ -119,28 +119,28 @@ const FileMainOptions = () => {
                   onClick={() => !option.disabled && navigate(option.route)}
                   data-testid={`option-card-${option.id}`}
                 >
-                  <CardHeader>
+                  <CardHeader className="p-4 sm:p-5">
                     <div
-                      className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${option.color} flex items-center justify-center mb-4`}
+                      className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${option.color} flex items-center justify-center mb-2 sm:mb-3`}
                     >
-                      <option.icon className="w-8 h-8 text-white" />
+                      <option.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
-                    <CardTitle className="text-2xl font-semibold">
+                    <CardTitle className="text-base sm:text-lg font-semibold">
                       {option.title}
                     </CardTitle>
-                    <CardDescription className="text-base mt-2">
+                    <CardDescription className="text-xs sm:text-sm mt-1 sm:mt-1.5">
                       {option.description}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-4 sm:p-5 pt-0">
                     {option.disabled && (
-                      <p className="text-sm text-red-600 font-semibold bg-red-50 px-3 py-2 rounded" data-testid={`disabled-message-${option.id}`}>
+                      <p className="text-[10px] sm:text-xs text-red-600 font-semibold bg-red-50 px-2 py-1.5 rounded" data-testid={`disabled-message-${option.id}`}>
                         Only available for PDF files
                       </p>
                     )}
                     {!option.disabled && (
                       <Button 
-                        className="w-full mt-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold"
+                        className="w-full mt-2 h-8 sm:h-9 text-xs sm:text-sm bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold"
                         data-testid={`open-${option.id}-button`}
                       >
                         Open →
@@ -153,33 +153,33 @@ const FileMainOptions = () => {
           </div>
 
           {/* File Info */}
-          <div className="mt-12 max-w-2xl mx-auto">
+          <div className="mt-6 sm:mt-8 max-w-2xl mx-auto">
             <Card>
-              <CardHeader>
-                <CardTitle>File Information</CardTitle>
+              <CardHeader className="p-3 sm:p-4">
+                <CardTitle className="text-sm sm:text-base">File Information</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+              <CardContent className="p-3 sm:p-4 pt-0">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
                   <div>
-                    <p className="text-gray-500">File Type</p>
-                    <p className="font-medium" data-testid="file-type">{file?.file_type?.toUpperCase()}</p>
+                    <p className="text-gray-500 text-[10px] sm:text-xs">File Type</p>
+                    <p className="font-medium text-xs sm:text-sm" data-testid="file-type">{file?.file_type?.toUpperCase()}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Uploaded</p>
-                    <p className="font-medium" data-testid="upload-date">
+                    <p className="text-gray-500 text-[10px] sm:text-xs">Uploaded</p>
+                    <p className="font-medium text-xs sm:text-sm" data-testid="upload-date">
                       {new Date(file?.uploaded_at).toLocaleDateString()}
                     </p>
                   </div>
                   {file?.meta?.page_count && (
                     <div>
-                      <p className="text-gray-500">Pages</p>
-                      <p className="font-medium" data-testid="page-count">{file.meta.page_count}</p>
+                      <p className="text-gray-500 text-[10px] sm:text-xs">Pages</p>
+                      <p className="font-medium text-xs sm:text-sm" data-testid="page-count">{file.meta.page_count}</p>
                     </div>
                   )}
                   {file?.meta?.sheet_count && (
                     <div>
-                      <p className="text-gray-500">Sheets</p>
-                      <p className="font-medium" data-testid="sheet-count">{file.meta.sheet_count}</p>
+                      <p className="text-gray-500 text-[10px] sm:text-xs">Sheets</p>
+                      <p className="font-medium text-xs sm:text-sm" data-testid="sheet-count">{file.meta.sheet_count}</p>
                     </div>
                   )}
                 </div>

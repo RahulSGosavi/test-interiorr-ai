@@ -77,33 +77,33 @@ const PricingAIPage = () => {
     <div className="min-h-screen h-screen w-full overflow-hidden flex flex-col" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10 flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate(`/file/${fileId}`)} data-testid="back-button">
-                <ArrowLeft className="w-5 h-5" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Button variant="ghost" size="sm" onClick={() => navigate(`/file/${fileId}`)} data-testid="back-button" className="h-7 w-7 p-0">
+                <ArrowLeft className="w-3.5 h-3.5" />
               </Button>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                  <Brain className="w-6 h-6 text-white" />
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+                  <Brain className="w-3.5 h-3.5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold" className="font-semibold" data-testid="page-title">
+                  <h1 className="text-sm sm:text-base font-semibold" data-testid="page-title">
                     Pricing AI Assistant
                   </h1>
-                  <p className="text-sm text-gray-500">{file?.name}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500 truncate max-w-[150px] sm:max-w-none">{file?.name}</p>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">AI Model:</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-[10px] sm:text-xs text-gray-500">AI Model:</span>
               <Select value={provider} onValueChange={setProvider}>
-                <SelectTrigger className="w-40" data-testid="provider-select">
+                <SelectTrigger className="w-28 sm:w-32 h-7 text-[10px] sm:text-xs" data-testid="provider-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="gemini" data-testid="provider-gemini">Gemini 2.0</SelectItem>
-                  <SelectItem value="openai" data-testid="provider-openai">GPT-4o</SelectItem>
+                  <SelectItem value="gemini" data-testid="provider-gemini" className="text-xs">Gemini 2.0</SelectItem>
+                  <SelectItem value="openai" data-testid="provider-openai" className="text-xs">GPT-4o</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -112,44 +112,44 @@ const PricingAIPage = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 flex gap-6 min-h-0 overflow-hidden">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 flex gap-3 sm:gap-4 min-h-0 overflow-hidden">
           {/* Sidebar */}
-          <div className="w-80 flex-shrink-0 hidden lg:block overflow-y-auto">
-            <Card className="sticky top-24">
-              <CardHeader>
-                <CardTitle className="text-lg">File Information</CardTitle>
+          <div className="w-56 flex-shrink-0 hidden lg:block overflow-y-auto">
+            <Card className="sticky top-20">
+              <CardHeader className="p-3">
+                <CardTitle className="text-sm">File Information</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-2.5 p-3 pt-0">
                 <div>
-                  <p className="text-sm text-gray-500">File Name</p>
-                  <p className="font-medium text-sm break-words" data-testid="sidebar-file-name">{file?.name}</p>
+                  <p className="text-[10px] text-gray-500">File Name</p>
+                  <p className="font-medium text-[11px] break-words" data-testid="sidebar-file-name">{file?.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Type</p>
-                  <p className="font-medium text-sm" data-testid="sidebar-file-type">{file?.file_type?.toUpperCase()}</p>
+                  <p className="text-[10px] text-gray-500">Type</p>
+                  <p className="font-medium text-[11px]" data-testid="sidebar-file-type">{file?.file_type?.toUpperCase()}</p>
                 </div>
                 {file?.meta?.sheet_count && (
                   <div>
-                    <p className="text-sm text-gray-500">Sheets</p>
-                    <p className="font-medium text-sm" data-testid="sidebar-sheet-count">{file.meta.sheet_count}</p>
+                    <p className="text-[10px] text-gray-500">Sheets</p>
+                    <p className="font-medium text-[11px]" data-testid="sidebar-sheet-count">{file.meta.sheet_count}</p>
                   </div>
                 )}
                 {file?.meta?.page_count && (
                   <div>
-                    <p className="text-sm text-gray-500">Pages</p>
-                    <p className="font-medium text-sm" data-testid="sidebar-page-count">{file.meta.page_count}</p>
+                    <p className="text-[10px] text-gray-500">Pages</p>
+                    <p className="font-medium text-[11px]" data-testid="sidebar-page-count">{file.meta.page_count}</p>
                   </div>
                 )}
 
-                <div className="pt-4 border-t">
-                  <p className="text-sm font-medium mb-2">Suggested Questions:</p>
-                  <div className="space-y-2">
+                <div className="pt-2.5 border-t">
+                  <p className="text-[10px] font-medium mb-1.5">Suggested Questions:</p>
+                  <div className="space-y-1.5">
                     {suggestedQuestions.map((q, idx) => (
                       <button
                         key={idx}
                         onClick={() => setQuestion(q)}
-                        className="w-full text-left text-xs p-2 rounded bg-gray-50 hover:bg-gray-100 transition"
+                        className="w-full text-left text-[9px] p-1.5 rounded bg-gray-50 hover:bg-gray-100 transition"
                         data-testid={`suggested-question-${idx}`}
                       >
                         {q}
@@ -164,14 +164,14 @@ const PricingAIPage = () => {
           {/* Chat Area */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              <CardContent className="flex-1 flex flex-col p-4 sm:p-6 min-h-0 overflow-hidden">
+              <CardContent className="flex-1 flex flex-col p-3 sm:p-4 min-h-0 overflow-hidden">
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto mb-4 space-y-4 min-h-0" data-testid="conversation-container">
+                <div className="flex-1 overflow-y-auto mb-3 space-y-2.5 min-h-0" data-testid="conversation-container">
                   {conversation.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center" data-testid="empty-conversation">
-                      <Brain className="w-16 h-16 text-gray-300 mb-4" />
-                      <h3 className="text-xl font-semibold mb-2">Ask me anything about this file</h3>
-                      <p className="text-gray-500 max-w-md">
+                      <Brain className="w-10 h-10 sm:w-12 sm:h-12 text-gray-300 mb-2 sm:mb-3" />
+                      <h3 className="text-sm sm:text-base font-semibold mb-1">Ask me anything about this file</h3>
+                      <p className="text-[11px] sm:text-xs text-gray-500 max-w-md px-4">
                         I can help you analyze costs, find specific data, calculate totals, and answer questions
                         about cabinet codes, prices, and materials.
                       </p>
@@ -189,20 +189,20 @@ const PricingAIPage = () => {
                         data-testid={`message-${idx}`}
                       >
                         <div
-                          className={`max-w-2xl rounded-2xl px-4 py-3 ${
+                          className={`max-w-2xl rounded-xl px-2.5 py-2 sm:px-3 sm:py-2.5 ${
                             msg.role === 'user'
                               ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
                               : 'bg-gray-100 text-gray-900'
                           }`}
                         >
-                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                          <p className="text-[11px] sm:text-xs whitespace-pre-wrap">{msg.content}</p>
                           {msg.table && msg.table.length > 0 && (
-                            <div className="mt-3 overflow-x-auto" data-testid={`message-table-${idx}`}>
-                              <table className="min-w-full text-xs">
+                            <div className="mt-2 overflow-x-auto" data-testid={`message-table-${idx}`}>
+                              <table className="min-w-full text-[9px] sm:text-[10px]">
                                 <thead>
                                   <tr className="border-b">
                                     {Object.keys(msg.table[0]).map((key) => (
-                                      <th key={key} className="px-2 py-1 text-left">
+                                      <th key={key} className="px-1.5 py-0.5 text-left">
                                         {key}
                                       </th>
                                     ))}
@@ -212,7 +212,7 @@ const PricingAIPage = () => {
                                   {msg.table.map((row, rowIdx) => (
                                     <tr key={rowIdx} className="border-b">
                                       {Object.values(row).map((val, colIdx) => (
-                                        <td key={colIdx} className="px-2 py-1">
+                                        <td key={colIdx} className="px-1.5 py-0.5">
                                           {val}
                                         </td>
                                       ))}
@@ -223,7 +223,7 @@ const PricingAIPage = () => {
                             </div>
                           )}
                           {msg.provider && (
-                            <p className="text-xs mt-2 opacity-70">Powered by {msg.provider}</p>
+                            <p className="text-[9px] sm:text-[10px] mt-1.5 opacity-70">Powered by {msg.provider}</p>
                           )}
                         </div>
                       </motion.div>
@@ -231,30 +231,30 @@ const PricingAIPage = () => {
                   )}
                   {loading && (
                     <div className="flex justify-start" data-testid="loading-indicator">
-                      <div className="bg-gray-100 rounded-2xl px-4 py-3">
-                        <Loader2 className="w-5 h-5 animate-spin text-gray-600" />
+                      <div className="bg-gray-100 rounded-xl px-2.5 py-2 sm:px-3 sm:py-2.5">
+                        <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-gray-600" />
                       </div>
                     </div>
                   )}
                 </div>
 
                 {/* Input */}
-                <form onSubmit={handleAskQuestion} className="flex gap-2">
+                <form onSubmit={handleAskQuestion} className="flex gap-1.5 sm:gap-2">
                   <Input
                     placeholder="Ask about costs, codes, totals, or any data in the file..."
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     disabled={loading}
-                    className="flex-1 h-12"
+                    className="flex-1 h-8 sm:h-9 text-xs sm:text-sm"
                     data-testid="question-input"
                   />
                   <Button
                     type="submit"
                     disabled={loading || !question.trim()}
-                    className="h-12 px-6 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                    className="h-8 sm:h-9 px-3 sm:px-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                     data-testid="send-question-button"
                   >
-                    <Send className="w-4 h-4" />
+                    <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   </Button>
                 </form>
               </CardContent>

@@ -83,20 +83,20 @@ const DiscussionPage = () => {
     <div className="min-h-screen h-screen w-full overflow-hidden flex flex-col" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10 flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate(`/file/${fileId}`)} data-testid="back-button">
-              <ArrowLeft className="w-5 h-5" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate(`/file/${fileId}`)} data-testid="back-button" className="h-7 w-7 p-0">
+              <ArrowLeft className="w-3.5 h-3.5" />
             </Button>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-green-500 to-teal-500 rounded-xl">
-                <MessageSquare className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-gradient-to-br from-green-500 to-teal-500 rounded-lg">
+                <MessageSquare className="w-3.5 h-3.5 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold" className="font-semibold" data-testid="page-title">
+                <h1 className="text-sm sm:text-base font-semibold" data-testid="page-title">
                   Discussion
                 </h1>
-                <p className="text-sm text-gray-500">{file?.name}</p>
+                <p className="text-[10px] sm:text-xs text-gray-500 truncate max-w-[200px] sm:max-w-none">{file?.name}</p>
               </div>
             </div>
           </div>
@@ -104,19 +104,19 @@ const DiscussionPage = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col min-h-0 overflow-hidden">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 flex flex-col min-h-0 overflow-hidden">
         <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <CardHeader className="flex-shrink-0">
-            <CardTitle>Team Discussion</CardTitle>
+          <CardHeader className="flex-shrink-0 p-3 sm:p-4">
+            <CardTitle className="text-base sm:text-lg">Team Discussion</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden p-4 sm:p-6">
+          <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden p-3 sm:p-4">
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto mb-4 space-y-4 min-h-0" data-testid="messages-container">
+            <div className="flex-1 overflow-y-auto mb-3 space-y-2.5 min-h-0" data-testid="messages-container">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center" data-testid="no-messages">
-                  <MessageSquare className="w-16 h-16 text-gray-300 mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">Start the conversation</h3>
-                  <p className="text-gray-500">Share your thoughts, questions, or feedback with the team</p>
+                  <MessageSquare className="w-10 h-10 sm:w-12 sm:h-12 text-gray-300 mb-2 sm:mb-3" />
+                  <h3 className="text-sm sm:text-base font-semibold mb-1">Start the conversation</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">Share your thoughts, questions, or feedback with the team</p>
                 </div>
               ) : (
                 messages.map((msg, idx) => {
@@ -132,30 +132,30 @@ const DiscussionPage = () => {
                       }`}
                       data-testid={`message-${idx}`}
                     >
-                      <Avatar className="w-10 h-10 flex-shrink-0">
-                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white">
+                      <Avatar className="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0">
+                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white text-[10px] sm:text-xs">
                           {getInitials(msg.author_name)}
                         </AvatarFallback>
                       </Avatar>
                       <div
-                        className={`flex flex-col max-w-lg ${
+                        className={`flex flex-col max-w-[70%] sm:max-w-md ${
                           isOwnMessage ? 'items-end' : 'items-start'
                         }`}
                       >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium" data-testid={`message-author-${idx}`}>{msg.author_name}</span>
-                          <span className="text-xs text-gray-500" data-testid={`message-time-${idx}`}>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[11px] sm:text-xs font-medium" data-testid={`message-author-${idx}`}>{msg.author_name}</span>
+                          <span className="text-[9px] sm:text-[10px] text-gray-500" data-testid={`message-time-${idx}`}>
                             {new Date(msg.created_at).toLocaleTimeString()}
                           </span>
                         </div>
                         <div
-                          className={`rounded-2xl px-4 py-2 ${
+                          className={`rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 ${
                             isOwnMessage
                               ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
                               : 'bg-gray-100 text-gray-900'
                           }`}
                         >
-                          <p className="text-sm whitespace-pre-wrap" data-testid={`message-text-${idx}`}>{msg.text}</p>
+                          <p className="text-[11px] sm:text-xs whitespace-pre-wrap" data-testid={`message-text-${idx}`}>{msg.text}</p>
                         </div>
                       </div>
                     </motion.div>
@@ -166,22 +166,22 @@ const DiscussionPage = () => {
             </div>
 
             {/* Input */}
-            <form onSubmit={handleSendMessage} className="flex gap-2">
+            <form onSubmit={handleSendMessage} className="flex gap-1.5 sm:gap-2">
               <Input
                 placeholder="Type your message..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 disabled={sending}
-                className="flex-1 h-12"
+                className="flex-1 h-8 sm:h-9 text-xs sm:text-sm"
                 data-testid="message-input"
               />
               <Button
                 type="submit"
                 disabled={sending || !newMessage.trim()}
-                className="h-12 px-6 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
+                className="h-8 sm:h-9 px-3 sm:px-4 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
                 data-testid="send-message-button"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               </Button>
             </form>
           </CardContent>
