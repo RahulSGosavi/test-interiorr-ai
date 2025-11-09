@@ -74,59 +74,59 @@ const PricingAIPage = () => {
   ];
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col fixed inset-0 bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
-      {/* Modern Glass Header */}
-      <header className="backdrop-blur-xl bg-white/80 border-b border-white/20 shadow-lg flex-shrink-0">
-        <div className="w-full px-2 sm:px-4 lg:px-6 py-1.5 sm:py-2.5 lg:py-3">
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2 lg:gap-3">
-            <div className="flex items-center gap-1 sm:gap-2 lg:gap-3 min-w-0 flex-1">
+    <div className="flex flex-col bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50" style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
+      {/* Compact Header */}
+      <header className="backdrop-blur-xl bg-white/80 border-b border-white/20 shadow-lg flex-shrink-0" style={{ minHeight: '48px', maxHeight: '56px' }}>
+        <div className="w-full px-2 sm:px-4 py-1.5 sm:py-2">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
               <Button 
                 variant="ghost" 
                 size="sm" 
                 onClick={() => navigate("/")} 
-                className="h-7 sm:h-8 lg:h-9 px-1.5 sm:px-2.5 lg:px-3 hover:bg-white/60 transition-all duration-200 hover:scale-105"
+                className="h-8 px-2 hover:bg-white/60"
               >
-                <Home className="w-3 h-3 sm:w-3.5 sm:h-3.5 lg:w-4 lg:h-4 sm:mr-1" />
-                <span className="hidden sm:inline text-[10px] sm:text-xs lg:text-sm font-medium">Home</span>
+                <Home className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline ml-1 text-xs">Home</span>
               </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 
                 onClick={() => navigate(`/file/${fileId}`)} 
-                className="h-7 sm:h-8 lg:h-9 px-1.5 sm:px-2.5 lg:px-3 hover:bg-white/60 transition-all duration-200 hover:scale-105"
+                className="h-8 px-2 hover:bg-white/60"
               >
-                <Menu className="w-3 h-3 sm:w-3.5 sm:h-3.5 lg:w-4 lg:h-4 sm:mr-1" />
-                <span className="hidden sm:inline text-[10px] sm:text-xs lg:text-sm font-medium">Menu</span>
+                <Menu className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline ml-1 text-xs">Menu</span>
               </Button>
-              <div className="h-4 sm:h-5 lg:h-6 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent hidden sm:block" />
-              <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 min-w-0">
-                <div className="p-1 sm:p-1.5 lg:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg sm:rounded-xl shadow-md sm:shadow-lg shadow-purple-500/20 sm:shadow-purple-500/30">
-                  <Brain className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 text-white" />
+              <div className="h-5 w-px bg-gray-300 hidden sm:block" />
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <div className="p-1.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-md">
+                  <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                 </div>
-                <div className="min-w-0">
-                  <h1 className="text-[11px] sm:text-sm lg:text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-xs sm:text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent truncate">
                     Pricing AI
                   </h1>
-                  <p className="text-[9px] sm:text-[10px] lg:text-xs text-gray-500 truncate max-w-[80px] sm:max-w-[150px] lg:max-w-none">{file?.name}</p>
+                  <p className="text-[9px] sm:text-xs text-gray-500 truncate">{file?.name}</p>
                 </div>
               </div>
             </div>
             <Select value={provider} onValueChange={setProvider}>
-              <SelectTrigger className="w-20 sm:w-24 lg:w-32 h-7 sm:h-8 lg:h-9 text-[10px] sm:text-xs lg:text-sm shadow-sm hover:shadow-md transition-all" data-testid="provider-select">
+              <SelectTrigger className="w-20 sm:w-24 h-8 text-[10px] sm:text-xs shadow-sm" data-testid="provider-select">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="gemini" className="text-[10px] sm:text-xs lg:text-sm">Gemini 2.0</SelectItem>
-                <SelectItem value="openai" className="text-[10px] sm:text-xs lg:text-sm">GPT-4o</SelectItem>
+                <SelectItem value="gemini" className="text-xs">Gemini 2.0</SelectItem>
+                <SelectItem value="openai" className="text-xs">GPT-4o</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
       </header>
 
-      {/* Main Content with 3D Chat */}
-      <main className="flex-1 w-full px-2 sm:px-4 lg:px-6 py-2 sm:py-4 lg:py-6 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 flex gap-2 sm:gap-3 lg:gap-4 min-h-0 overflow-hidden max-w-7xl w-full mx-auto">
+      {/* Chat Container - Uses remaining height */}
+      <main className="flex-1 w-full px-2 sm:px-4 py-2 sm:py-3 overflow-hidden" style={{ minHeight: 0 }}>
+        <div className="h-full max-w-6xl mx-auto flex gap-3 overflow-hidden">
           {/* Modern Sidebar - Hidden on Mobile */}
           <div className="w-56 lg:w-64 flex-shrink-0 hidden lg:block overflow-y-auto">
             <div className="bg-white/70 backdrop-blur-xl rounded-xl lg:rounded-2xl border border-white/20 shadow-lg lg:shadow-xl p-3 lg:p-4 sticky top-0">
@@ -172,105 +172,104 @@ const PricingAIPage = () => {
           </div>
 
           {/* 3D Chat Area */}
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            {/* 3D Glass Chat Container */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-white/70 backdrop-blur-xl rounded-xl sm:rounded-2xl lg:rounded-3xl border border-white/20 shadow-xl sm:shadow-2xl transform-gpu transition-all duration-300 hover:shadow-purple-500/20">
-              {/* Chat Header */}
-              <div className="flex-shrink-0 px-2.5 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 border-b border-gray-100/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50">
-                <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-800">AI Assistant</h2>
+          <div className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
+            {/* 3D Glass Chat Card */}
+            <div className="flex flex-col bg-white/70 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 shadow-xl overflow-hidden" style={{ height: '100%' }}>
+              {/* Chat Title */}
+              <div className="flex-shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 border-b border-gray-100/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50">
+                <h2 className="text-xs sm:text-sm font-semibold text-gray-800">AI Assistant</h2>
               </div>
               
-              {/* Messages Container */}
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-2 sm:p-3 lg:p-4">
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto mb-2 sm:mb-3 space-y-2 sm:space-y-2.5 lg:space-y-3 min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent" data-testid="conversation-container">
+              {/* Messages Area - Scrollable */}
+              <div className="flex-1 overflow-y-auto px-2 sm:px-3 py-2 sm:py-3 space-y-2 sm:space-y-3" style={{ minHeight: 0 }} data-testid="conversation-container">
                   {conversation.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center px-3 sm:px-4" data-testid="empty-conversation">
-                      <div className="p-3 sm:p-4 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl sm:rounded-2xl mb-3 sm:mb-4 shadow-md sm:shadow-lg">
-                        <Brain className="w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 text-purple-600" />
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                      <div className="p-3 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl mb-3 shadow-md">
+                        <Brain className="w-10 h-10 sm:w-12 sm:h-12 text-purple-600" />
                       </div>
-                      <h3 className="text-sm sm:text-base lg:text-lg font-bold text-gray-800 mb-1.5 sm:mb-2">Ask me anything</h3>
-                      <p className="text-xs sm:text-sm text-gray-500">I can help analyze costs, find data, and calculate totals</p>
+                      <h3 className="text-sm sm:text-base font-bold text-gray-800 mb-1">Ask me anything</h3>
+                      <p className="text-xs text-gray-500">Analyze costs & data</p>
                     </div>
                   ) : (
-                    conversation.map((msg, idx) => (
-                      <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ duration: 0.4, ease: "easeOut" }}
-                        className={`flex ${
-                          msg.role === 'user' ? 'justify-end' : 'justify-start'
-                        }`}
-                        data-testid={`message-${idx}`}
-                      >
-                        <div
-                          className={`max-w-[75%] sm:max-w-[80%] lg:max-w-2xl rounded-xl sm:rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 lg:px-5 lg:py-3 shadow-md sm:shadow-lg transform transition-all duration-200 hover:scale-[1.02] ${
-                            msg.role === 'user'
-                              ? 'bg-gradient-to-br from-purple-500 via-purple-600 to-pink-600 text-white shadow-purple-500/30'
-                              : 'bg-white text-gray-800 shadow-gray-200/50 border border-gray-100'
-                          }`}
+                    <>
+                      {conversation.map((msg, idx) => (
+                        <motion.div
+                          key={idx}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                          data-testid={`message-${idx}`}
                         >
-                          <p className="text-xs sm:text-sm lg:text-base leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
-                          {msg.table && msg.table.length > 0 && (
-                            <div className="mt-3 overflow-x-auto bg-black/5 rounded-lg p-2" data-testid={`message-table-${idx}`}>
-                              <table className="min-w-full text-xs">
-                                <thead>
-                                  <tr className="border-b border-gray-300">
-                                    {Object.keys(msg.table[0]).map((key) => (
-                                      <th key={key} className="px-2 py-1.5 text-left font-semibold">
-                                        {key}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {msg.table.map((row, rowIdx) => (
-                                    <tr key={rowIdx} className="border-b border-gray-200/50">
-                                      {Object.values(row).map((val, colIdx) => (
-                                        <td key={colIdx} className="px-2 py-1.5">
-                                          {val}
-                                        </td>
+                          <div
+                            className={`max-w-[85%] sm:max-w-[75%] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-md ${
+                              msg.role === 'user'
+                                ? 'bg-gradient-to-br from-purple-500 to-pink-600 text-white'
+                                : 'bg-white text-gray-800 border border-gray-100'
+                            }`}
+                          >
+                            <p className="text-xs sm:text-sm leading-snug whitespace-pre-wrap break-words">{msg.content}</p>
+                            {msg.table && msg.table.length > 0 && (
+                              <div className="mt-2 overflow-x-auto bg-black/5 rounded p-1.5" data-testid={`message-table-${idx}`}>
+                                <table className="min-w-full text-[10px] sm:text-xs">
+                                  <thead>
+                                    <tr className="border-b border-gray-300">
+                                      {Object.keys(msg.table[0]).map((key) => (
+                                        <th key={key} className="px-1.5 py-1 text-left font-semibold">
+                                          {key}
+                                        </th>
                                       ))}
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                          {msg.provider && (
-                            <p className="text-xs mt-2 opacity-70">Powered by {msg.provider}</p>
-                          )}
+                                  </thead>
+                                  <tbody>
+                                    {msg.table.map((row, rowIdx) => (
+                                      <tr key={rowIdx} className="border-b border-gray-200/50">
+                                        {Object.values(row).map((val, colIdx) => (
+                                          <td key={colIdx} className="px-1.5 py-1">
+                                            {val}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                            {msg.provider && (
+                              <p className="text-[9px] sm:text-[10px] mt-1 opacity-70">By {msg.provider}</p>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                      {loading && (
+                        <div className="flex justify-start" data-testid="loading-indicator">
+                          <div className="bg-white rounded-xl px-3 py-2 shadow-md border border-gray-100">
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                          </div>
                         </div>
-                      </motion.div>
-                    ))
+                      )}
+                    </>
                   )}
-                  {loading && (
-                    <div className="flex justify-start" data-testid="loading-indicator">
-                      <div className="bg-white rounded-xl sm:rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 lg:px-5 lg:py-3 shadow-md sm:shadow-lg border border-gray-100">
-                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 animate-spin text-purple-600" />
-                      </div>
-                    </div>
-                  )}
-                </div>
+              </div>
 
-                {/* Modern Input */}
-                <form onSubmit={handleAskQuestion} className="flex gap-1.5 sm:gap-2 lg:gap-3 flex-shrink-0">
+              {/* Input - Always Visible */}
+              <div className="flex-shrink-0 border-t border-gray-100/50 p-2 sm:p-3 bg-white/50">
+                <form onSubmit={handleAskQuestion} className="flex gap-2">
                   <Input
-                    placeholder="Ask about costs, codes, totals..."
+                    placeholder="Ask about costs..."
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     disabled={loading}
-                    className="flex-1 h-9 sm:h-10 lg:h-12 text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-5 rounded-lg sm:rounded-xl bg-white/80 backdrop-blur-sm border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 shadow-sm transition-all"
+                    className="flex-1 h-9 sm:h-10 text-xs sm:text-sm px-3 rounded-lg bg-white border-gray-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                     data-testid="question-input"
                   />
                   <Button
                     type="submit"
                     disabled={loading || !question.trim()}
-                    className="h-9 w-9 sm:h-10 sm:w-10 lg:h-12 lg:w-12 p-0 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-md sm:shadow-lg shadow-purple-500/30 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                    className="h-9 w-9 sm:h-10 sm:w-10 p-0 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-md disabled:opacity-50"
                     data-testid="send-question-button"
                   >
-                    <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-5 lg:h-5" />
+                    <Send className="w-4 h-4" />
                   </Button>
                 </form>
               </div>
