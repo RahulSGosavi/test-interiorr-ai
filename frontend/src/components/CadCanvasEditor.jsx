@@ -1179,7 +1179,8 @@ const CadCanvasEditor = forwardRef(
                   width={160}
                   align="center"
                   fontSize={14}
-                  fontStyle="600"
+                  fontFamily="Arial, Helvetica, sans-serif"
+                  fontStyle="normal"
                   fill={shape.stroke}
                   listening={false}
                 />
@@ -1230,7 +1231,8 @@ const CadCanvasEditor = forwardRef(
                   width={160}
                   align="center"
                   fontSize={14}
-                  fontStyle="600"
+                  fontFamily="Arial, Helvetica, sans-serif"
+                  fontStyle="normal"
                   fill={shape.stroke}
                   listening={false}
                 />
@@ -1314,6 +1316,8 @@ const CadCanvasEditor = forwardRef(
                   y={shape.y}
                   text={shape.text}
                   fontSize={shape.fontSize || 18}
+                  fontFamily="Arial, Helvetica, sans-serif"
+                  fontStyle="normal"
                   fill={shape.stroke}
                 />
               );
@@ -1391,7 +1395,8 @@ const CadCanvasEditor = forwardRef(
                       width={160}
                       align="center"
                       fontSize={14}
-                      fontStyle="600"
+                      fontFamily="Arial, Helvetica, sans-serif"
+                      fontStyle="normal"
                       fill={strokeColor}
                       listening={false}
                     />
@@ -1474,6 +1479,8 @@ const CadCanvasEditor = forwardRef(
               minHeight: 48,
               padding: 12,
               fontSize: `${textEditor.fontSize}px`,
+              fontFamily: "Arial, Helvetica, sans-serif",
+              fontWeight: "normal",
               lineHeight: 1.4,
               zIndex: 20,
               resize: "both",
