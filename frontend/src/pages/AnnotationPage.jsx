@@ -704,7 +704,7 @@ const AnnotationPage = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 fixed inset-0">
-      <header className="h-16 flex items-center justify-between px-6 border-b border-slate-900/80 bg-slate-950/70 backdrop-blur flex-shrink-0">
+      <header className="h-14 lg:h-16 flex items-center justify-between px-4 lg:px-6 border-b border-slate-900/80 bg-slate-950/70 backdrop-blur flex-shrink-0">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -716,13 +716,13 @@ const AnnotationPage = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <div className="h-7 w-px bg-slate-800" />
+          <div className="h-6 w-px bg-slate-800 hidden sm:block" />
           <div>
-            <h1 className="text-base font-semibold">CAD Annotation Workspace</h1>
-            <p className="text-xs text-slate-400 max-w-xs truncate">{file?.name}</p>
+            <h1 className="text-sm lg:text-base font-semibold">CAD Annotation</h1>
+            <p className="text-[10px] lg:text-xs text-slate-400 max-w-xs truncate hidden sm:block">{file?.name}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 text-xs">
+        <div className="flex items-center gap-2 lg:gap-3 text-xs flex-wrap">
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/60 border border-slate-800 uppercase tracking-wide">
             <span className="text-slate-400">Active</span>
             <span className="font-semibold text-slate-100 capitalize">{activeTool.replace("-", " ")}</span>
@@ -777,7 +777,7 @@ const AnnotationPage = () => {
         />
 
         <section className="flex-1 flex flex-col min-h-0">
-          <div className="h-20 px-6 border-b border-slate-900 bg-slate-950/80 backdrop-blur flex items-center justify-between flex-shrink-0">
+          <div className="h-16 lg:h-18 px-4 lg:px-6 border-b border-slate-900 bg-slate-950/80 backdrop-blur flex items-center justify-between flex-shrink-0 overflow-x-auto">
             <div className="flex items-center gap-6">
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Stroke Width</span>
