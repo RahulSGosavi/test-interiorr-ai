@@ -729,10 +729,10 @@ const AnnotationPage = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/")}
             data-testid="home-button"
             className="text-slate-200 hover:bg-slate-800 h-8 px-2 text-xs"
-            title="Go to Dashboard"
+            title="Go to Home"
           >
             <Home className="w-3.5 h-3.5 mr-1" />
             <span className="hidden sm:inline">Home</span>
