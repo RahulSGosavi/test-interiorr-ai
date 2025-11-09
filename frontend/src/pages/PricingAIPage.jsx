@@ -173,45 +173,52 @@ const PricingAIPage = () => {
 
           {/* 3D Chat Area */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              <CardContent className="flex-1 flex flex-col p-2 min-h-0 overflow-hidden">
+            {/* 3D Glass Chat Container */}
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-white/70 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-white/20 shadow-2xl transform-gpu transition-all duration-300 hover:shadow-purple-500/20">
+              {/* Chat Header */}
+              <div className="flex-shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50">
+                <h2 className="text-sm sm:text-base font-semibold text-gray-800">AI Assistant</h2>
+              </div>
+              
+              {/* Messages Container */}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-3 sm:p-4">
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto mb-2 space-y-2 min-h-0" data-testid="conversation-container">
+                <div className="flex-1 overflow-y-auto mb-3 space-y-3 min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent" data-testid="conversation-container">
                   {conversation.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center" data-testid="empty-conversation">
-                      <Brain className="w-8 h-8 text-gray-300 mb-1" />
-                      <h3 className="text-[11px] font-semibold mb-0.5">Ask me anything</h3>
-                      <p className="text-[9px] text-gray-500">
-                        Analyze costs & data
-                      </p>
+                    <div className="flex flex-col items-center justify-center h-full text-center px-4" data-testid="empty-conversation">
+                      <div className="p-4 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl mb-4 shadow-lg">
+                        <Brain className="w-12 h-12 sm:w-16 sm:h-16 text-purple-600" />
+                      </div>
+                      <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-2">Ask me anything</h3>
+                      <p className="text-sm text-gray-500">I can help analyze costs, find data, and calculate totals</p>
                     </div>
                   ) : (
                     conversation.map((msg, idx) => (
                       <motion.div
                         key={idx}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.4, ease: "easeOut" }}
                         className={`flex ${
                           msg.role === 'user' ? 'justify-end' : 'justify-start'
                         }`}
                         data-testid={`message-${idx}`}
                       >
                         <div
-                          className={`max-w-[85%] rounded px-1.5 py-1 ${
+                          className={`max-w-[80%] sm:max-w-2xl rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 shadow-lg transform transition-all duration-200 hover:scale-[1.02] ${
                             msg.role === 'user'
-                              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-                              : 'bg-gray-100 text-gray-900'
+                              ? 'bg-gradient-to-br from-purple-500 via-purple-600 to-pink-600 text-white shadow-purple-500/30'
+                              : 'bg-white text-gray-800 shadow-gray-200/50 border border-gray-100'
                           }`}
                         >
-                          <p className="text-[10px] whitespace-pre-wrap break-words">{msg.content}</p>
+                          <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                           {msg.table && msg.table.length > 0 && (
-                            <div className="mt-1 overflow-x-auto" data-testid={`message-table-${idx}`}>
-                              <table className="min-w-full text-[7px]">
+                            <div className="mt-3 overflow-x-auto bg-black/5 rounded-lg p-2" data-testid={`message-table-${idx}`}>
+                              <table className="min-w-full text-xs">
                                 <thead>
-                                  <tr className="border-b">
+                                  <tr className="border-b border-gray-300">
                                     {Object.keys(msg.table[0]).map((key) => (
-                                      <th key={key} className="px-0.5 py-0.5 text-left">
+                                      <th key={key} className="px-2 py-1.5 text-left font-semibold">
                                         {key}
                                       </th>
                                     ))}
@@ -219,9 +226,9 @@ const PricingAIPage = () => {
                                 </thead>
                                 <tbody>
                                   {msg.table.map((row, rowIdx) => (
-                                    <tr key={rowIdx} className="border-b">
+                                    <tr key={rowIdx} className="border-b border-gray-200/50">
                                       {Object.values(row).map((val, colIdx) => (
-                                        <td key={colIdx} className="px-0.5 py-0.5">
+                                        <td key={colIdx} className="px-2 py-1.5">
                                           {val}
                                         </td>
                                       ))}
@@ -232,7 +239,7 @@ const PricingAIPage = () => {
                             </div>
                           )}
                           {msg.provider && (
-                            <p className="text-[7px] mt-0.5 opacity-70">By {msg.provider}</p>
+                            <p className="text-xs mt-2 opacity-70">Powered by {msg.provider}</p>
                           )}
                         </div>
                       </motion.div>
@@ -240,34 +247,34 @@ const PricingAIPage = () => {
                   )}
                   {loading && (
                     <div className="flex justify-start" data-testid="loading-indicator">
-                      <div className="bg-gray-100 rounded px-1.5 py-1">
-                        <Loader2 className="w-3 h-3 animate-spin text-gray-600" />
+                      <div className="bg-white rounded-2xl px-5 py-3 shadow-lg border border-gray-100">
+                        <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin text-purple-600" />
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Input */}
-                <form onSubmit={handleAskQuestion} className="flex gap-1.5 flex-shrink-0">
+                {/* Modern Input */}
+                <form onSubmit={handleAskQuestion} className="flex gap-2 sm:gap-3 flex-shrink-0">
                   <Input
-                    placeholder="Ask costs..."
+                    placeholder="Ask about costs, codes, totals..."
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     disabled={loading}
-                    className="flex-1 h-8 text-[11px] px-2"
+                    className="flex-1 h-11 sm:h-12 text-sm sm:text-base px-4 sm:px-5 rounded-xl bg-white/80 backdrop-blur-sm border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 shadow-sm transition-all"
                     data-testid="question-input"
                   />
                   <Button
                     type="submit"
                     disabled={loading || !question.trim()}
-                    className="h-8 w-8 p-0 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                    className="h-11 sm:h-12 w-11 sm:w-12 p-0 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/30 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
                     data-testid="send-question-button"
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    <Send className="w-4 h-4 sm:w-5 sm:h-5" />
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
       </main>
