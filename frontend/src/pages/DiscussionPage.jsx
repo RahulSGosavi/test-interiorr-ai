@@ -216,6 +216,7 @@ const DiscussionPage = () => {
         </div>
       </main>
     </div>
+  );
 };
 
 export default DiscussionPage;
