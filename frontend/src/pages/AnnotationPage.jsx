@@ -5,7 +5,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import { filesAPI, annotationsAPI } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Home, Menu } from "lucide-react";
 import AnnotationToolbar from "@/components/AnnotationToolbar";
 import CadCanvasEditor from "@/components/CadCanvasEditor";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -729,12 +729,24 @@ const AnnotationPage = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(`/file/${fileId}`)}
-            data-testid="back-button"
+            onClick={() => navigate("/dashboard")}
+            data-testid="home-button"
             className="text-slate-200 hover:bg-slate-800 h-8 px-2 text-xs"
+            title="Go to Dashboard"
           >
-            <ArrowLeft className="w-3.5 h-3.5 mr-1" />
-            Back
+            <Home className="w-3.5 h-3.5 mr-1" />
+            <span className="hidden sm:inline">Home</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(`/file/${fileId}`)}
+            data-testid="menu-button"
+            className="text-slate-200 hover:bg-slate-800 h-8 px-2 text-xs"
+            title="Go to File Menu"
+          >
+            <Menu className="w-3.5 h-3.5 mr-1" />
+            <span className="hidden sm:inline">Menu</span>
           </Button>
           <div className="h-5 w-px bg-slate-800 hidden sm:block" />
           <div>
