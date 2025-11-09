@@ -242,10 +242,15 @@ def delete_project(
     files_to_delete = db.query(DBFile).filter(DBFile.project_id == project_id).all()
     for file_obj in files_to_delete:
         try:
-            if os.path.exists(file_obj.file_path):
-                os.remove(file_obj.file_path)
-        except Exception:
-            pass
+            # Resolve file path (handle both old absolute paths and new relative paths)
+            file_path = Path(file_obj.file_path)
+            if not file_path.is_absolute():
+                file_path = UPLOAD_DIR / file_obj.file_path
+            
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            print(f"[WARNING] Failed to delete file during project cleanup: {e}")
         db.query(Annotation).filter(Annotation.file_id == file_obj.id).delete()
         db.delete(file_obj)
 
@@ -338,7 +343,11 @@ async def _save_uploaded_file(
         file_type = "excel"
 
     file_ext = Path(file.filename).suffix
-    file_path = UPLOAD_DIR / f"{uuid.uuid4()}{file_ext}"
+    filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = UPLOAD_DIR / filename
+
+    # Ensure upload directory exists
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     async with aiofiles.open(file_path, 'wb') as f:
         content = await file.read()
@@ -346,9 +355,11 @@ async def _save_uploaded_file(
 
     file_size = os.path.getsize(file_path)
 
+    # Store only the filename, not the full path
+    # This makes it portable across different deployment environments
     db_file = DBFile(
         name=file.filename,
-        file_path=str(file_path),
+        file_path=filename,  # Store only filename, not full path
         file_type=file_type,
         file_size=file_size,
         project_id=project_id,
@@ -368,13 +379,32 @@ def download_file(
 ):
     db_file = db.query(DBFile).filter(DBFile.id == file_id).first()
     if not db_file:
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail="File not found in database")
     
-    if not os.path.exists(db_file.file_path):
-        raise HTTPException(status_code=404, detail="File not found on disk")
+    # Resolve file path: if it's just a filename, prepend UPLOAD_DIR
+    file_path = Path(db_file.file_path)
+    if not file_path.is_absolute():
+        file_path = UPLOAD_DIR / db_file.file_path
+    
+    print(f"[DEBUG] Attempting to download file: {file_path}")
+    print(f"[DEBUG] UPLOAD_DIR: {UPLOAD_DIR}")
+    print(f"[DEBUG] File exists: {os.path.exists(file_path)}")
+    
+    if not os.path.exists(file_path):
+        # Log available files for debugging
+        try:
+            available_files = list(UPLOAD_DIR.glob('*')) if UPLOAD_DIR.exists() else []
+            print(f"[DEBUG] Available files in upload dir: {[f.name for f in available_files]}")
+        except Exception as e:
+            print(f"[DEBUG] Error listing files: {e}")
+        
+        raise HTTPException(
+            status_code=404, 
+            detail=f"File not found on disk. Looking for: {file_path}"
+        )
     
     return FastAPIFileResponse(
-        path=db_file.file_path,
+        path=str(file_path),
         filename=db_file.name,
         media_type='application/octet-stream'
     )
@@ -490,10 +520,15 @@ def delete_file(
     
     # Delete physical file
     try:
-        if os.path.exists(db_file.file_path):
-            os.remove(db_file.file_path)
-    except:
-        pass
+        # Resolve file path (handle both old absolute paths and new relative paths)
+        file_path = Path(db_file.file_path)
+        if not file_path.is_absolute():
+            file_path = UPLOAD_DIR / db_file.file_path
+        
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except Exception as e:
+        print(f"[WARNING] Failed to delete file {db_file.file_path}: {e}")
     
     # Delete from DB (cascade should handle annotations)
     db.query(Annotation).filter(Annotation.file_id == file_id).delete()
