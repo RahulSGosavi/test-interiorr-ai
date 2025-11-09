@@ -74,97 +74,104 @@ const PricingAIPage = () => {
   ];
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col fixed inset-0" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 flex-shrink-0">
-        <div className="w-full px-2 sm:px-4 py-1 sm:py-1.5">
-          <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center gap-1 min-w-0 flex-1">
-              <Button variant="ghost" size="sm" onClick={() => navigate("/")} data-testid="home-button" className="h-7 w-7 p-0 sm:h-8 sm:w-auto sm:px-2" title="Go to Home">
-                <Home className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline ml-1 text-xs">Home</span>
+    <div className="h-screen w-screen overflow-hidden flex flex-col fixed inset-0 bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
+      {/* Modern Glass Header */}
+      <header className="backdrop-blur-xl bg-white/80 border-b border-white/20 shadow-lg flex-shrink-0">
+        <div className="w-full px-3 sm:px-6 py-2 sm:py-3">
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate("/")} 
+                className="h-8 sm:h-9 px-3 hover:bg-white/60 transition-all duration-200 hover:scale-105"
+              >
+                <Home className="w-4 h-4 sm:mr-1.5" />
+                <span className="hidden sm:inline text-sm font-medium">Home</span>
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/file/${fileId}`)} data-testid="menu-button" className="h-7 w-7 p-0 sm:h-8 sm:w-auto sm:px-2" title="Go to File Menu">
-                <Menu className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline ml-1 text-xs">Menu</span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate(`/file/${fileId}`)} 
+                className="h-8 sm:h-9 px-3 hover:bg-white/60 transition-all duration-200 hover:scale-105"
+              >
+                <Menu className="w-4 h-4 sm:mr-1.5" />
+                <span className="hidden sm:inline text-sm font-medium">Menu</span>
               </Button>
-              <div className="h-4 w-px bg-gray-300" />
-              <div className="flex items-center gap-1.5 min-w-0">
-                <div className="p-1 bg-gradient-to-br from-purple-500 to-pink-500 rounded flex-shrink-0">
-                  <Brain className="w-3 h-3 text-white" />
+              <div className="h-6 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent hidden sm:block" />
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg shadow-purple-500/30">
+                  <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-xs font-semibold truncate" data-testid="page-title">
-                    AI
+                  <h1 className="text-sm sm:text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                    Pricing AI
                   </h1>
-                  <p className="text-[8px] text-gray-500 truncate">{file?.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{file?.name}</p>
                 </div>
               </div>
             </div>
             <Select value={provider} onValueChange={setProvider}>
-              <SelectTrigger className="w-16 h-7 text-[9px] flex-shrink-0" data-testid="provider-select">
+              <SelectTrigger className="w-24 sm:w-32 h-8 sm:h-9 text-xs sm:text-sm shadow-sm hover:shadow-md transition-all" data-testid="provider-select">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="gemini" data-testid="provider-gemini" className="text-[10px]">Gemini</SelectItem>
-                <SelectItem value="openai" data-testid="provider-openai" className="text-[10px]">GPT</SelectItem>
+                <SelectItem value="gemini" className="text-xs sm:text-sm">Gemini 2.0</SelectItem>
+                <SelectItem value="openai" className="text-xs sm:text-sm">GPT-4o</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 w-full px-2 py-2 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 flex gap-2 min-h-0 overflow-hidden max-w-7xl w-full mx-auto">
-          {/* Sidebar - Hidden on Mobile */}
-          <div className="w-40 flex-shrink-0 hidden lg:block overflow-y-auto">
-            <Card className="h-fit">
-              <CardHeader className="p-2">
-                <CardTitle className="text-[10px]">File Info</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1.5 p-2 pt-0">
+      {/* Main Content with 3D Chat */}
+      <main className="flex-1 w-full px-3 sm:px-6 py-3 sm:py-6 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 flex gap-3 sm:gap-4 min-h-0 overflow-hidden max-w-7xl w-full mx-auto">
+          {/* Modern Sidebar - Hidden on Mobile */}
+          <div className="w-64 flex-shrink-0 hidden lg:block overflow-y-auto">
+            <div className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white/20 shadow-xl p-4 sticky top-0">
+              <h3 className="text-sm font-bold text-gray-800 mb-3">File Information</h3>
+              <div className="space-y-2.5 text-sm">
                 <div>
-                  <p className="text-[10px] text-gray-500">File Name</p>
-                  <p className="font-medium text-[11px] break-words" data-testid="sidebar-file-name">{file?.name}</p>
+                  <p className="text-xs text-gray-500 mb-1">File Name</p>
+                  <p className="font-semibold text-xs break-words text-gray-800">{file?.name}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-500">Type</p>
-                  <p className="font-medium text-[11px]" data-testid="sidebar-file-type">{file?.file_type?.toUpperCase()}</p>
+                  <p className="text-xs text-gray-500 mb-1">Type</p>
+                  <p className="font-semibold text-xs text-gray-800">{file?.file_type?.toUpperCase()}</p>
                 </div>
                 {file?.meta?.sheet_count && (
                   <div>
-                    <p className="text-[10px] text-gray-500">Sheets</p>
-                    <p className="font-medium text-[11px]" data-testid="sidebar-sheet-count">{file.meta.sheet_count}</p>
+                    <p className="text-xs text-gray-500 mb-1">Sheets</p>
+                    <p className="font-semibold text-xs text-gray-800">{file.meta.sheet_count}</p>
                   </div>
                 )}
                 {file?.meta?.page_count && (
                   <div>
-                    <p className="text-[10px] text-gray-500">Pages</p>
-                    <p className="font-medium text-[11px]" data-testid="sidebar-page-count">{file.meta.page_count}</p>
+                    <p className="text-xs text-gray-500 mb-1">Pages</p>
+                    <p className="font-semibold text-xs text-gray-800">{file.meta.page_count}</p>
                   </div>
                 )}
+              </div>
 
-                <div className="pt-2.5 border-t">
-                  <p className="text-[10px] font-medium mb-1.5">Suggested Questions:</p>
-                  <div className="space-y-1.5">
-                    {suggestedQuestions.map((q, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setQuestion(q)}
-                        className="w-full text-left text-[9px] p-1.5 rounded bg-gray-50 hover:bg-gray-100 transition"
-                        data-testid={`suggested-question-${idx}`}
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <p className="text-xs font-bold text-gray-700 mb-2">💡 Suggested Questions</p>
+                <div className="space-y-2">
+                  {suggestedQuestions.map((q, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setQuestion(q)}
+                      className="w-full text-left text-[11px] p-2 rounded-lg bg-gradient-to-br from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border border-purple-100 transition-all duration-200 hover:scale-[1.02] hover:shadow-md text-gray-700"
+                    >
+                      {q}
+                    </button>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
-          {/* Chat Area */}
+          {/* 3D Chat Area */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
               <CardContent className="flex-1 flex flex-col p-2 min-h-0 overflow-hidden">
