@@ -13,6 +13,8 @@ RUN npm ci --legacy-peer-deps
 
 # Build production assets
 COPY frontend/ ./
+# Set NODE_ENV to production for proper API URL detection
+ENV NODE_ENV=production
 RUN npm run build
 
 ################################################################################

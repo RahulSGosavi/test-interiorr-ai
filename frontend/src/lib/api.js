@@ -1,6 +1,22 @@
 import axios from 'axios';
 
-const API_URL = (process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000') + '/api';
+// In production, use relative URL (same domain). In development, use localhost:8000
+const getApiUrl = () => {
+  // If explicitly set via env var, use that
+  if (process.env.REACT_APP_BACKEND_URL) {
+    return process.env.REACT_APP_BACKEND_URL + '/api';
+  }
+  
+  // In production (deployed), use relative path (same domain as frontend)
+  if (process.env.NODE_ENV === 'production') {
+    return window.location.origin + '/api';
+  }
+  
+  // In development, use localhost
+  return 'http://localhost:8000/api';
+};
+
+const API_URL = getApiUrl();
 
 const api = axios.create({
   baseURL: API_URL,
