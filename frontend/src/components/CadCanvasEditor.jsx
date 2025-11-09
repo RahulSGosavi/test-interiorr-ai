@@ -77,6 +77,7 @@ const CadCanvasEditor = forwardRef(
     const [angleDraft, setAngleDraft] = useState(null);
     const [rulerDraft, setRulerDraft] = useState(null);
     const [textEditor, setTextEditor] = useState(null);
+    const [containerDimensions, setContainerDimensions] = useState({ width: 800, height: 600 });
     const historyRef = useRef({ undo: [], redo: [] });
     const shapesRef = useRef(shapes);
     const eraserRemovedRef = useRef(false);
@@ -229,6 +230,28 @@ const CadCanvasEditor = forwardRef(
     useEffect(() => {
       shapesRef.current = shapes;
     }, [shapes]);
+
+    useEffect(() => {
+      const updateContainerSize = () => {
+        if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          setContainerDimensions({ width: rect.width, height: rect.height });
+        }
+      };
+
+      updateContainerSize();
+      window.addEventListener('resize', updateContainerSize);
+      
+      const resizeObserver = new ResizeObserver(updateContainerSize);
+      if (containerRef.current) {
+        resizeObserver.observe(containerRef.current);
+      }
+
+      return () => {
+        window.removeEventListener('resize', updateContainerSize);
+        resizeObserver.disconnect();
+      };
+    }, []);
 
     useEffect(() => {
       setHasAutoFit(false);
@@ -1313,8 +1336,8 @@ const CadCanvasEditor = forwardRef(
       <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-slate-950">
         <Stage
           ref={stageRef}
-          width={pageDimensions.width}
-          height={pageDimensions.height}
+          width={containerDimensions.width}
+          height={containerDimensions.height}
           scaleX={scale}
           scaleY={scale}
           x={stagePosition.x}

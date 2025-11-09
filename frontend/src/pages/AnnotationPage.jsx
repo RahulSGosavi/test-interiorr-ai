@@ -703,8 +703,8 @@ const AnnotationPage = () => {
   const totalElements = snapshot?.shapes?.length ?? snapshot?.objects?.length ?? 0;
 
   return (
-    <div className="h-screen w-full overflow-hidden flex flex-col bg-slate-950 text-slate-100">
-      <header className="h-16 flex items-center justify-between px-6 border-b border-slate-900/80 bg-slate-950/70 backdrop-blur">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 fixed inset-0">
+      <header className="h-16 flex items-center justify-between px-6 border-b border-slate-900/80 bg-slate-950/70 backdrop-blur flex-shrink-0">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -776,8 +776,8 @@ const AnnotationPage = () => {
           disabled={controlsDisabled}
         />
 
-        <section className="flex-1 flex flex-col">
-          <div className="h-20 px-6 border-b border-slate-900 bg-slate-950/80 backdrop-blur flex items-center justify-between">
+        <section className="flex-1 flex flex-col min-h-0">
+          <div className="h-20 px-6 border-b border-slate-900 bg-slate-950/80 backdrop-blur flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-6">
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Stroke Width</span>
@@ -877,7 +877,7 @@ const AnnotationPage = () => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden bg-slate-900" data-testid="cad-editor-surface">
+          <div className="flex-1 overflow-hidden bg-slate-900 min-h-0" data-testid="cad-editor-surface">
             <CadCanvasEditor
               ref={canvasRef}
               pageImage={pageImage}
