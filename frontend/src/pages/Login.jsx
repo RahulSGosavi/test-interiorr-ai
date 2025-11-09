@@ -38,10 +38,10 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{
+    <div className="min-h-screen h-screen w-full overflow-auto flex items-center justify-center p-4 sm:p-6 md:p-8" style={{
       background: 'linear-gradient(to bottom right, #f0f9ff, #e0f2fe, #fae8ff)'
     }}>
-      <Card className="w-full max-w-md shadow-2xl border-0 animate-fade-in">
+      <Card className="w-full max-w-md shadow-2xl border-0 animate-fade-in mx-auto">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl">

@@ -74,9 +74,9 @@ const PricingAIPage = () => {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
+    <div className="min-h-screen h-screen w-full overflow-hidden flex flex-col" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 flex-shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -112,10 +112,10 @@ const PricingAIPage = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
-        <div className="flex-1 flex gap-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 flex gap-6 min-h-0 overflow-hidden">
           {/* Sidebar */}
-          <div className="w-80 flex-shrink-0">
+          <div className="w-80 flex-shrink-0 hidden lg:block overflow-y-auto">
             <Card className="sticky top-24">
               <CardHeader>
                 <CardTitle className="text-lg">File Information</CardTitle>
@@ -162,11 +162,11 @@ const PricingAIPage = () => {
           </div>
 
           {/* Chat Area */}
-          <div className="flex-1 flex flex-col">
-            <Card className="flex-1 flex flex-col">
-              <CardContent className="flex-1 flex flex-col p-6">
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <CardContent className="flex-1 flex flex-col p-4 sm:p-6 min-h-0 overflow-hidden">
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto mb-4 space-y-4" data-testid="conversation-container">
+                <div className="flex-1 overflow-y-auto mb-4 space-y-4 min-h-0" data-testid="conversation-container">
                   {conversation.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center" data-testid="empty-conversation">
                       <Brain className="w-16 h-16 text-gray-300 mb-4" />

@@ -80,9 +80,9 @@ const DiscussionPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
+    <div className="min-h-screen h-screen w-full overflow-hidden flex flex-col" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 flex-shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => navigate(`/file/${fileId}`)} data-testid="back-button">
@@ -104,14 +104,14 @@ const DiscussionPage = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
-        <Card className="flex-1 flex flex-col">
-          <CardHeader>
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col min-h-0 overflow-hidden">
+        <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <CardHeader className="flex-shrink-0">
             <CardTitle>Team Discussion</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col">
+          <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden p-4 sm:p-6">
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto mb-4 space-y-4 min-h-[400px]" data-testid="messages-container">
+            <div className="flex-1 overflow-y-auto mb-4 space-y-4 min-h-0" data-testid="messages-container">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center" data-testid="no-messages">
                   <MessageSquare className="w-16 h-16 text-gray-300 mb-4" />

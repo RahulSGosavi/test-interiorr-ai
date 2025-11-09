@@ -128,15 +128,15 @@ const ProjectFiles = () => {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <div className="min-h-screen h-screen w-full flex items-center justify-center">Loading...</div>;
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
+    <div className="min-h-screen h-screen w-full overflow-auto flex flex-col" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 flex-shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <Button variant="ghost" onClick={() => navigate('/')} data-testid="back-button">
                 <ArrowLeft className="w-5 h-5" />
@@ -235,7 +235,7 @@ const ProjectFiles = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {folders.length === 0 ? (
           <div className="text-center py-12" data-testid="no-folders-message">
             <Folder className="w-16 h-16 mx-auto text-gray-400 mb-4" />
