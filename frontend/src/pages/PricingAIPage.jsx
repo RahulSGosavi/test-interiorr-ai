@@ -74,59 +74,56 @@ const PricingAIPage = () => {
   ];
 
   return (
-    <div className="min-h-screen h-screen w-full overflow-hidden flex flex-col" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
+    <div className="h-screen w-screen overflow-hidden flex flex-col fixed inset-0" style={{ background: 'linear-gradient(to bottom right, #f8fafc, #e0f2fe)' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-1.5 sm:py-2">
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-              <Button variant="ghost" size="sm" onClick={() => navigate("/")} data-testid="home-button" className="h-6 sm:h-7 px-1.5 sm:px-2" title="Go to Home">
-                <Home className="w-3 h-3 sm:w-3.5 sm:h-3.5 sm:mr-1" />
-                <span className="hidden sm:inline text-xs">Home</span>
+      <header className="bg-white border-b border-gray-200 flex-shrink-0">
+        <div className="w-full px-2 sm:px-4 py-1 sm:py-1.5">
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1 min-w-0 flex-1">
+              <Button variant="ghost" size="sm" onClick={() => navigate("/")} data-testid="home-button" className="h-7 w-7 p-0 sm:h-8 sm:w-auto sm:px-2" title="Go to Home">
+                <Home className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline ml-1 text-xs">Home</span>
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/file/${fileId}`)} data-testid="menu-button" className="h-6 sm:h-7 px-1.5 sm:px-2" title="Go to File Menu">
-                <Menu className="w-3 h-3 sm:w-3.5 sm:h-3.5 sm:mr-1" />
-                <span className="hidden sm:inline text-xs">Menu</span>
+              <Button variant="ghost" size="sm" onClick={() => navigate(`/file/${fileId}`)} data-testid="menu-button" className="h-7 w-7 p-0 sm:h-8 sm:w-auto sm:px-2" title="Go to File Menu">
+                <Menu className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline ml-1 text-xs">Menu</span>
               </Button>
-              <div className="h-3 w-px bg-gray-300 hidden sm:block" />
-              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                <div className="p-1 sm:p-1.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex-shrink-0">
-                  <Brain className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
+              <div className="h-4 w-px bg-gray-300" />
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="p-1 bg-gradient-to-br from-purple-500 to-pink-500 rounded flex-shrink-0">
+                  <Brain className="w-3 h-3 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-xs sm:text-sm font-semibold truncate" data-testid="page-title">
-                    Pricing AI
+                  <h1 className="text-xs font-semibold truncate" data-testid="page-title">
+                    AI
                   </h1>
-                  <p className="text-[9px] sm:text-[10px] text-gray-500 truncate max-w-[100px] sm:max-w-[150px]">{file?.name}</p>
+                  <p className="text-[8px] text-gray-500 truncate">{file?.name}</p>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1 sm:gap-1.5">
-              <span className="text-[9px] sm:text-[10px] text-gray-500 hidden sm:inline">AI:</span>
-              <Select value={provider} onValueChange={setProvider}>
-                <SelectTrigger className="w-20 sm:w-28 h-6 sm:h-7 text-[9px] sm:text-[10px]" data-testid="provider-select">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gemini" data-testid="provider-gemini" className="text-[10px] sm:text-xs">Gemini</SelectItem>
-                  <SelectItem value="openai" data-testid="provider-openai" className="text-[10px] sm:text-xs">GPT-4o</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={provider} onValueChange={setProvider}>
+              <SelectTrigger className="w-16 h-7 text-[9px] flex-shrink-0" data-testid="provider-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gemini" data-testid="provider-gemini" className="text-[10px]">Gemini</SelectItem>
+                <SelectItem value="openai" data-testid="provider-openai" className="text-[10px]">GPT</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-3 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 flex gap-2 sm:gap-3 min-h-0 overflow-hidden">
-          {/* Sidebar */}
-          <div className="w-48 flex-shrink-0 hidden lg:block overflow-y-auto">
-            <Card className="sticky top-16">
+      <main className="flex-1 w-full px-2 py-2 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 flex gap-2 min-h-0 overflow-hidden max-w-7xl w-full mx-auto">
+          {/* Sidebar - Hidden on Mobile */}
+          <div className="w-40 flex-shrink-0 hidden lg:block overflow-y-auto">
+            <Card className="h-fit">
               <CardHeader className="p-2">
-                <CardTitle className="text-xs">File Info</CardTitle>
+                <CardTitle className="text-[10px]">File Info</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 p-2 pt-0">
+              <CardContent className="space-y-1.5 p-2 pt-0">
                 <div>
                   <p className="text-[10px] text-gray-500">File Name</p>
                   <p className="font-medium text-[11px] break-words" data-testid="sidebar-file-name">{file?.name}</p>
@@ -170,15 +167,15 @@ const PricingAIPage = () => {
           {/* Chat Area */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              <CardContent className="flex-1 flex flex-col p-2 sm:p-3 min-h-0 overflow-hidden">
+              <CardContent className="flex-1 flex flex-col p-2 min-h-0 overflow-hidden">
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto mb-2 space-y-2 min-h-0" data-testid="conversation-container">
                   {conversation.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center px-2" data-testid="empty-conversation">
-                      <Brain className="w-8 h-8 sm:w-10 sm:h-10 text-gray-300 mb-1.5 sm:mb-2" />
-                      <h3 className="text-xs sm:text-sm font-semibold mb-0.5 sm:mb-1">Ask me anything</h3>
-                      <p className="text-[10px] sm:text-[11px] text-gray-500 max-w-md px-2">
-                        Analyze costs, find data, calculate totals
+                    <div className="flex flex-col items-center justify-center h-full text-center" data-testid="empty-conversation">
+                      <Brain className="w-8 h-8 text-gray-300 mb-1" />
+                      <h3 className="text-[11px] font-semibold mb-0.5">Ask me anything</h3>
+                      <p className="text-[9px] text-gray-500">
+                        Analyze costs & data
                       </p>
                     </div>
                   ) : (
@@ -194,20 +191,20 @@ const PricingAIPage = () => {
                         data-testid={`message-${idx}`}
                       >
                         <div
-                          className={`max-w-full sm:max-w-2xl rounded-lg px-2 py-1.5 sm:px-2.5 sm:py-2 ${
+                          className={`max-w-[85%] rounded px-1.5 py-1 ${
                             msg.role === 'user'
                               ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
                               : 'bg-gray-100 text-gray-900'
                           }`}
                         >
-                          <p className="text-[10px] sm:text-[11px] whitespace-pre-wrap break-words">{msg.content}</p>
+                          <p className="text-[10px] whitespace-pre-wrap break-words">{msg.content}</p>
                           {msg.table && msg.table.length > 0 && (
-                            <div className="mt-1.5 overflow-x-auto" data-testid={`message-table-${idx}`}>
-                              <table className="min-w-full text-[8px] sm:text-[9px]">
+                            <div className="mt-1 overflow-x-auto" data-testid={`message-table-${idx}`}>
+                              <table className="min-w-full text-[7px]">
                                 <thead>
                                   <tr className="border-b">
                                     {Object.keys(msg.table[0]).map((key) => (
-                                      <th key={key} className="px-1 py-0.5 text-left">
+                                      <th key={key} className="px-0.5 py-0.5 text-left">
                                         {key}
                                       </th>
                                     ))}
@@ -217,7 +214,7 @@ const PricingAIPage = () => {
                                   {msg.table.map((row, rowIdx) => (
                                     <tr key={rowIdx} className="border-b">
                                       {Object.values(row).map((val, colIdx) => (
-                                        <td key={colIdx} className="px-1 py-0.5">
+                                        <td key={colIdx} className="px-0.5 py-0.5">
                                           {val}
                                         </td>
                                       ))}
@@ -228,7 +225,7 @@ const PricingAIPage = () => {
                             </div>
                           )}
                           {msg.provider && (
-                            <p className="text-[8px] sm:text-[9px] mt-1 opacity-70">Powered by {msg.provider}</p>
+                            <p className="text-[7px] mt-0.5 opacity-70">By {msg.provider}</p>
                           )}
                         </div>
                       </motion.div>
@@ -236,30 +233,30 @@ const PricingAIPage = () => {
                   )}
                   {loading && (
                     <div className="flex justify-start" data-testid="loading-indicator">
-                      <div className="bg-gray-100 rounded-lg px-2 py-1.5 sm:px-2.5 sm:py-2">
-                        <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin text-gray-600" />
+                      <div className="bg-gray-100 rounded px-1.5 py-1">
+                        <Loader2 className="w-3 h-3 animate-spin text-gray-600" />
                       </div>
                     </div>
                   )}
                 </div>
 
                 {/* Input */}
-                <form onSubmit={handleAskQuestion} className="flex gap-1.5 sm:gap-2 flex-shrink-0">
+                <form onSubmit={handleAskQuestion} className="flex gap-1.5 flex-shrink-0">
                   <Input
-                    placeholder="Ask about costs..."
+                    placeholder="Ask costs..."
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     disabled={loading}
-                    className="flex-1 h-7 sm:h-8 text-[11px] sm:text-xs px-2"
+                    className="flex-1 h-8 text-[11px] px-2"
                     data-testid="question-input"
                   />
                   <Button
                     type="submit"
                     disabled={loading || !question.trim()}
-                    className="h-7 sm:h-8 px-2 sm:px-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                    className="h-8 w-8 p-0 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                     data-testid="send-question-button"
                   >
-                    <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    <Send className="w-3.5 h-3.5" />
                   </Button>
                 </form>
               </CardContent>
