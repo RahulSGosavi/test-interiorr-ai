@@ -35,6 +35,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Handle 401 unauthorized
     if (error?.response?.status === 401) {
       try {
         localStorage.removeItem('token');
@@ -44,6 +45,22 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    
+    // Handle errors with arraybuffer responseType
+    // When responseType is arraybuffer and there's an error, 
+    // axios stores the error message in response.data as ArrayBuffer
+    if (error?.config?.responseType === 'arraybuffer' && error?.response?.data) {
+      try {
+        // Convert ArrayBuffer to text to get the actual error message
+        const decoder = new TextDecoder('utf-8');
+        const text = decoder.decode(error.response.data);
+        const errorData = JSON.parse(text);
+        error.response.data = errorData;
+      } catch (e) {
+        // If parsing fails, leave as is
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -78,6 +95,9 @@ export const filesAPI = {
   },
   getAll: (folderId) => api.get(`/folders/${folderId}/files`),
   getOne: (id) => api.get(`/files/${id}`),
+  download: (id) => api.get(`/files/${id}/download`, {
+    responseType: 'arraybuffer',
+  }),
   delete: (id) => api.delete(`/files/${id}`),
 };
 

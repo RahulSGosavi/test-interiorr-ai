@@ -155,14 +155,31 @@ const AnnotationPage = () => {
       await loadAnnotations();
 
       try {
-        const pdfResponse = await api.get(`/files/${fileId}/download`, {
-          responseType: "arraybuffer",
-        });
+        setCanvasStatus({ loading: true, message: "Loading PDF..." });
+        const pdfResponse = await filesAPI.download(fileId);
+        
+        if (!pdfResponse.data || pdfResponse.data.byteLength === 0) {
+          throw new Error("Empty file received");
+        }
+        
         const doc = await pdfjsLib.getDocument({ data: pdfResponse.data }).promise;
         setPdfDoc(doc);
         setNumPages(doc.numPages);
+        setCanvasStatus({ loading: false, message: null });
       } catch (error) {
-        toast.error("Failed to load document");
+        console.error("Failed to load PDF:", error);
+        setCanvasStatus({ loading: false, message: null });
+        
+        // Better error messages based on error type
+        if (error?.response?.status === 404) {
+          toast.error("PDF file not found. Please upload the file again.");
+        } else if (error?.response?.status === 401) {
+          toast.error("Session expired. Please login again.");
+        } else if (error?.message?.includes("Invalid PDF")) {
+          toast.error("Invalid PDF file. Please upload a valid PDF.");
+        } else {
+          toast.error(`Failed to load document: ${error?.message || "Unknown error"}`);
+        }
       }
     };
     bootstrap();
@@ -377,9 +394,12 @@ const AnnotationPage = () => {
           }
         : pageStates;
 
-      const response = await api.get(`/files/${fileId}/download`, {
-        responseType: "arraybuffer",
-      });
+      const response = await filesAPI.download(fileId);
+      
+      if (!response.data || response.data.byteLength === 0) {
+        throw new Error("Empty file received");
+      }
+      
       const fileBytes = response.data;
       const pdfLibDoc = await PDFDocument.load(fileBytes);
       const pdfJsDoc = await pdfjsLib.getDocument({ data: fileBytes }).promise;
