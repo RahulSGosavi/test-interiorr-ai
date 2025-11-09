@@ -31,9 +31,13 @@ from schemas import (
     FolderCreate, FolderResponse
 )
 
-# Pricing AI integration disabled (emergent integrations removed)
-LLM_AVAILABLE = False
-# Logger will be initialized later, warning will be printed after logger setup
+# Pricing AI integration with LiteLLM
+try:
+    import litellm
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
+    # Logger will be initialized later, warning will be printed after logger setup
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -601,6 +605,110 @@ def get_annotations(
     annotations = db.query(Annotation).filter(Annotation.file_id == file_id).all()
     return [AnnotationResponse.model_validate(a) for a in annotations]
 
+# ===== Pricing AI Helper Functions =====
+def extract_file_content(file_path: Path, file_type: str) -> str:
+    """Extract text content from various file types"""
+    try:
+        if file_type == 'pdf':
+            import fitz  # PyMuPDF
+            doc = fitz.open(file_path)
+            text = ""
+            for page in doc:
+                text += page.get_text()
+            doc.close()
+            return text
+        
+        elif file_type in ['xlsx', 'xls']:
+            import pandas as pd
+            df = pd.read_excel(file_path, sheet_name=None)
+            text = ""
+            for sheet_name, sheet_df in df.items():
+                text += f"\n\n=== Sheet: {sheet_name} ===\n"
+                text += sheet_df.to_string(index=False)
+            return text
+        
+        elif file_type == 'csv':
+            import pandas as pd
+            df = pd.read_csv(file_path)
+            return df.to_string(index=False)
+        
+        elif file_type in ['txt', 'text']:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        
+        else:
+            return f"File type {file_type} not supported for AI analysis"
+    
+    except Exception as e:
+        logging.error(f"Error extracting file content: {e}")
+        return f"Error reading file: {str(e)}"
+
+async def query_ai_provider(question: str, context: str, provider: str = "gemini") -> tuple[str, Optional[List[Dict[str, Any]]]]:
+    """Query AI provider with context"""
+    if not LLM_AVAILABLE:
+        return "AI integration is not available. Please install litellm.", None
+    
+    try:
+        # Prepare the prompt
+        system_prompt = """You are a helpful AI assistant specialized in analyzing pricing documents, 
+spreadsheets, and CAD/construction documents. You can extract information, perform calculations, 
+and answer questions about costs, quantities, codes, and other data in the documents.
+
+When presenting tabular data, format your response with the data clearly visible as text, 
+and I will extract it into a proper table format."""
+
+        user_prompt = f"""Document Content:
+{context[:15000]}  
+
+Question: {question}
+
+Please provide a clear and concise answer. If the answer involves tabular data, 
+present it in a structured format."""
+
+        # Map provider names
+        model_name = "gemini/gemini-2.0-flash-exp" if provider == "gemini" else "gpt-4o-mini"
+        
+        # Query using litellm
+        import litellm
+        litellm.set_verbose = False
+        
+        response = litellm.completion(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.3,
+            max_tokens=2000
+        )
+        
+        answer = response.choices[0].message.content
+        
+        # Try to extract table data if present
+        table_data = None
+        # Simple table detection (can be enhanced)
+        if '|' in answer or '\t' in answer:
+            try:
+                # Attempt to parse table-like content
+                lines = answer.split('\n')
+                table_lines = [line for line in lines if '|' in line or '\t' in line]
+                if len(table_lines) > 1:
+                    # Basic table parsing
+                    import pandas as pd
+                    # This is a simplified parser, real implementation would be more robust
+                    pass  # Table extraction can be enhanced
+            except:
+                pass
+        
+        return answer, table_data
+    
+    except Exception as e:
+        logging.error(f"AI query error: {e}")
+        error_msg = str(e)
+        if "API key" in error_msg or "authentication" in error_msg.lower():
+            return f"AI provider authentication error. Please configure API keys in environment variables.", None
+        return f"Error querying AI: {str(e)}", None
+
 # ===== Pricing AI Routes =====
 @api_router.post("/pricing-ai/query", response_model=AIResponse)
 async def pricing_ai_query(
@@ -608,10 +716,41 @@ async def pricing_ai_query(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Pricing AI functionality disabled since emergent integrations were removed
-    raise HTTPException(
-        status_code=503,
-        detail="Pricing AI integration is currently disabled."
+    """Query AI about file content (pricing, data extraction, calculations)"""
+    
+    # Get the file
+    db_file = db.query(DBFile).filter(DBFile.id == query.file_id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Verify file belongs to user's project
+    project = db.query(Project).filter(
+        and_(Project.id == db_file.project_id, Project.owner_id == current_user.id)
+    ).first()
+    if not project:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Resolve file path
+    file_path = Path(db_file.file_path)
+    if not file_path.is_absolute():
+        file_path = UPLOAD_DIR / db_file.file_path
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found on disk: {file_path}")
+    
+    # Extract file content
+    content = extract_file_content(file_path, db_file.file_type)
+    
+    if not content or "Error" in content:
+        raise HTTPException(status_code=400, detail=content)
+    
+    # Query AI
+    answer, table_data = await query_ai_provider(query.question, content, query.provider)
+    
+    return AIResponse(
+        response=answer,
+        table=table_data,
+        provider=query.provider
     )
 
 # ===== Discussion Routes =====
