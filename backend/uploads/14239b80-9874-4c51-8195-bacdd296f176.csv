@@ -1,0 +1,110 @@
+Item,Code,Price,Quantity,Category,Material,Finish
+Kitchen Base Cabinet 12",KB-12,380.00,4,Cabinet,Maple,Natural
+Kitchen Base Cabinet 15",KB-15,410.00,6,Cabinet,Maple,Natural
+Kitchen Base Cabinet 18",KB-18,435.00,8,Cabinet,Maple,Natural
+Kitchen Base Cabinet 21",KB-21,445.00,5,Cabinet,Maple,Natural
+Kitchen Base Cabinet 24",KB-24,450.00,8,Cabinet,Maple,Natural
+Kitchen Base Cabinet 27",KB-27,475.00,3,Cabinet,Maple,Natural
+Kitchen Base Cabinet 30",KB-30,520.00,4,Cabinet,Maple,Natural
+Kitchen Base Cabinet 33",KB-33,545.00,2,Cabinet,Maple,Natural
+Kitchen Base Cabinet 36",KB-36,580.00,6,Cabinet,Maple,Natural
+Kitchen Wall Cabinet 12",KW-12,245.00,8,Cabinet,Maple,Natural
+Kitchen Wall Cabinet 15",KW-15,265.00,6,Cabinet,Maple,Natural
+Kitchen Wall Cabinet 18",KW-18,285.00,10,Cabinet,Maple,Natural
+Kitchen Wall Cabinet 21",KW-21,305.00,4,Cabinet,Maple,Natural
+Kitchen Wall Cabinet 24",KW-24,285.00,8,Cabinet,Maple,Natural
+Kitchen Wall Cabinet 27",KW-27,315.00,3,Cabinet,Maple,Natural
+Kitchen Wall Cabinet 30",KW-30,320.00,6,Cabinet,Maple,Natural
+Kitchen Wall Cabinet 33",KW-33,345.00,2,Cabinet,Maple,Natural
+Kitchen Wall Cabinet 36",KW-36,365.00,4,Cabinet,Maple,Natural
+Kitchen Tall Cabinet 12",KT-12,685.00,2,Cabinet,Maple,Natural
+Kitchen Tall Cabinet 15",KT-15,715.00,1,Cabinet,Maple,Natural
+Kitchen Tall Cabinet 18",KT-18,745.00,3,Cabinet,Maple,Natural
+Kitchen Tall Cabinet 21",KT-21,775.00,1,Cabinet,Maple,Natural
+Kitchen Tall Cabinet 24",KT-24,805.00,2,Cabinet,Maple,Natural
+Kitchen Pantry Cabinet 84",KP-84,890.00,2,Cabinet,Maple,Natural
+Kitchen Corner Base 36",KCB-36,675.00,1,Cabinet,Maple,Natural
+Kitchen Corner Wall 24",KCW-24,485.00,1,Cabinet,Maple,Natural
+Kitchen Island Base 48",KIB-48,750.00,1,Cabinet,Maple,Natural
+Kitchen Island Base 60",KIB-60,925.00,1,Cabinet,Maple,Natural
+Kitchen Island Base 72",KIB-72,1100.00,1,Cabinet,Maple,Natural
+Bathroom Vanity 18",BV-18,425.00,2,Vanity,Oak,Espresso
+Bathroom Vanity 24",BV-24,485.00,4,Vanity,Oak,Espresso
+Bathroom Vanity 30",BV-30,565.00,3,Vanity,Oak,Espresso
+Bathroom Vanity 36",BV-36,650.00,3,Vanity,Oak,Espresso
+Bathroom Vanity 42",BV-42,735.00,2,Vanity,Oak,Espresso
+Bathroom Vanity 48",BV-48,825.00,1,Vanity,Oak,Espresso
+Bathroom Vanity 60",BV-60,1050.00,1,Vanity,Oak,Espresso
+Bathroom Vanity 72",BV-72,1285.00,1,Vanity,Oak,Espresso
+Bathroom Linen Cabinet 12",BLC-12,385.00,3,Cabinet,Oak,Espresso
+Bathroom Linen Cabinet 15",BLC-15,415.00,2,Cabinet,Oak,Espresso
+Bathroom Linen Cabinet 18",BLC-18,445.00,4,Cabinet,Oak,Espresso
+Bathroom Wall Cabinet 12",BWC-12,225.00,6,Cabinet,Oak,Espresso
+Bathroom Wall Cabinet 15",BWC-15,245.00,4,Cabinet,Oak,Espresso
+Bathroom Wall Cabinet 18",BWC-18,265.00,8,Cabinet,Oak,Espresso
+Bathroom Wall Cabinet 24",BWC-24,305.00,3,Cabinet,Oak,Espresso
+Bathroom Mirror 18",BM-18,95.00,4,Mirror,Glass,Beveled
+Bathroom Mirror 24",BM-24,125.00,3,Mirror,Glass,Beveled
+Bathroom Mirror 30",BM-30,155.00,2,Mirror,Glass,Beveled
+Bathroom Mirror 36",BM-36,185.00,2,Mirror,Glass,Beveled
+Bathroom Mirror 42",BM-42,215.00,1,Mirror,Glass,Beveled
+Bathroom Mirror 48",BM-48,245.00,1,Mirror,Glass,Beveled
+Kitchen Countertop Granite 25SF,KCG-25,875.00,3,Countertop,Granite,Black Pearl
+Kitchen Countertop Granite 30SF,KCG-30,1050.00,2,Countertop,Granite,Black Pearl
+Kitchen Countertop Granite 35SF,KCG-35,1225.00,1,Countertop,Granite,Black Pearl
+Kitchen Countertop Quartz 25SF,KCQ-25,1125.00,2,Countertop,Quartz,White
+Kitchen Countertop Quartz 30SF,KCQ-30,1350.00,1,Countertop,Quartz,White
+Kitchen Countertop Quartz 35SF,KCQ-35,1575.00,1,Countertop,Quartz,White
+Kitchen Island Top Granite 15SF,KIG-15,525.00,1,Countertop,Granite,Black Pearl
+Kitchen Island Top Granite 20SF,KIG-20,700.00,1,Countertop,Granite,Black Pearl
+Kitchen Island Top Granite 25SF,KIG-25,875.00,1,Countertop,Granite,Black Pearl
+Kitchen Island Top Quartz 15SF,KIQ-15,675.00,1,Countertop,Quartz,White
+Kitchen Island Top Quartz 20SF,KIQ-20,900.00,1,Countertop,Quartz,White
+Kitchen Island Top Quartz 25SF,KIQ-25,1125.00,1,Countertop,Quartz,White
+Bathroom Countertop 24SF,BCT-24,360.00,3,Countertop,Quartz,White
+Bathroom Countertop 30SF,BCT-30,450.00,2,Countertop,Quartz,White
+Bathroom Countertop 36SF,BCT-36,540.00,2,Countertop,Quartz,White
+Bathroom Countertop 42SF,BCT-42,630.00,1,Countertop,Quartz,White
+Bathroom Countertop 48SF,BCT-48,480.00,2,Countertop,Quartz,White
+Kitchen Sink Undermount Single,KS-US,285.00,1,Fixture,Stainless Steel,Brushed
+Kitchen Sink Undermount Double,KS-UD,385.00,1,Fixture,Stainless Steel,Brushed
+Kitchen Sink Farmhouse 30",KS-F30,485.00,1,Fixture,Fireclay,White
+Kitchen Sink Farmhouse 33",KS-F33,565.00,1,Fixture,Fireclay,White
+Kitchen Sink Farmhouse 36",KS-F36,645.00,1,Fixture,Fireclay,White
+Kitchen Faucet Pull Down,KF-PD,245.00,1,Fixture,Stainless Steel,Brushed
+Kitchen Faucet Pull Out,KF-PO,225.00,1,Fixture,Stainless Steel,Brushed
+Kitchen Faucet Bridge Style,KF-BS,385.00,1,Fixture,Brass,Antique
+Bathroom Sink Undermount 16",BS-U16,145.00,4,Fixture,Porcelain,White
+Bathroom Sink Undermount 19",BS-U19,165.00,3,Fixture,Porcelain,White
+Bathroom Sink Vessel Round,BS-VR,185.00,2,Fixture,Glass,Clear
+Bathroom Sink Vessel Square,BS-VS,205.00,2,Fixture,Stone,Natural
+Bathroom Faucet Single Handle,BF-SH,145.00,4,Fixture,Chrome,Polished
+Bathroom Faucet Widespread,BF-WS,195.00,2,Fixture,Chrome,Polished
+Bathroom Faucet Wall Mount,BF-WM,225.00,1,Fixture,Brass,Brushed
+Kitchen Pendant Light Single,KPL-1,85.00,6,Lighting,Bronze,Oil Rubbed
+Kitchen Pendant Light Triple,KPL-3,165.00,4,Lighting,Bronze,Oil Rubbed
+Kitchen Chandelier 6 Light,KC-6,385.00,1,Lighting,Crystal,Clear
+Kitchen Under Cabinet LED 24",KUC-24,65.00,8,Lighting,Aluminum,White
+Kitchen Under Cabinet LED 36",KUC-36,85.00,6,Lighting,Aluminum,White
+Kitchen Under Cabinet LED 48",KUC-48,105.00,4,Lighting,Aluminum,White
+Kitchen Recessed Light 4",KR-4,25.00,12,Lighting,Aluminum,White
+Kitchen Recessed Light 6",KR-6,35.00,8,Lighting,Aluminum,White
+Bathroom Sconce Single,BS-1,65.00,8,Lighting,Nickel,Brushed
+Bathroom Sconce Double,BS-2,89.00,6,Lighting,Nickel,Brushed
+Bathroom Vanity Light 3 Bulb,BVL-3,125.00,3,Lighting,Chrome,Polished
+Bathroom Vanity Light 4 Bulb,BVL-4,145.00,2,Lighting,Chrome,Polished
+Bathroom Ceiling Light,BCL-1,85.00,4,Lighting,Nickel,Brushed
+Bathroom Exhaust Fan 80CFM,BEF-80,125.00,2,Ventilation,Plastic,White
+Bathroom Exhaust Fan 110CFM,BEF-110,145.00,1,Ventilation,Plastic,White
+Kitchen Tile Backsplash Subway 3x6,KTB-S36,12.50,45,Tile,Ceramic,White
+Kitchen Tile Backsplash Mosaic 1x1,KTB-M11,18.75,25,Tile,Glass,Mixed
+Kitchen Tile Backsplash Herringbone,KTB-HB,22.50,20,Tile,Marble,Carrara
+Kitchen Floor Tile 12x12,KFT-12,8.25,85,Tile,Porcelain,Wood Look
+Kitchen Floor Tile 18x18,KFT-18,12.50,60,Tile,Porcelain,Stone Look
+Kitchen Floor Tile 24x24,KFT-24,16.75,45,Tile,Porcelain,Concrete Look
+Bathroom Floor Tile 6x6,BFT-6,6.50,150,Tile,Ceramic,White
+Bathroom Floor Tile 12x12,BFT-12,8.75,120,Tile,Porcelain,Marble Look
+Bathroom Floor Tile 12x24,BFT-1224,11.25,90,Tile,Porcelain,Wood Look
+Bathroom Wall Tile 4x4,BWT-4,5.25,200,Tile,Ceramic,White
+Bathroom Wall Tile 3x6 Subway,BWT-36,7.50,180,Tile,Ceramic,White
+Bathroom Wall Tile 6x12,BWT-612,9.75,120,Tile,Porcelain,Marble Look

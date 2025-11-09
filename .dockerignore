@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+*.log
+.DS_Store
+frontend/build
+frontend/node_modules
+backend/__pycache__
+backend/*.pyc
+uploads/*
+.emergent

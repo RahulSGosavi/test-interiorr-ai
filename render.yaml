@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: annotation-ai-suite
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: bash render-build.sh
+    startCommand: bash render-start.sh
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: annotation_db
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "43200"
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: UPLOAD_DIR
+        value: /opt/render/project/src/backend/uploads
+      - key: EMERGENT_LLM_KEY
+        sync: false
+      - key: REACT_APP_BACKEND_URL
+        sync: false
+    disk:
+      name: uploads
+      mountPath: /opt/render/project/src/backend/uploads
+      sizeGB: 10
