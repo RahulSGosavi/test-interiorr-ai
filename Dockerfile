@@ -1,15 +1,10 @@
-# syntax=docker/dockerfile:1.7
-
-################################################################################
-# Frontend build stage
-################################################################################
 FROM node:20-bullseye AS frontend-builder
 
 WORKDIR /app/frontend
 
 # Install frontend dependencies
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps --no-audit --no-fund
 
 # Build production assets
 COPY frontend/ ./
@@ -17,14 +12,12 @@ COPY frontend/ ./
 ENV NODE_ENV=production
 RUN npm run build
 
-################################################################################
-# Backend runtime stage
-################################################################################
 FROM python:3.11-slim AS backend-runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
@@ -41,12 +34,13 @@ RUN apt-get update && \
         libopenjp2-7 \
         libtiff6 \
         libgl1 && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install Python dependencies
 COPY backend/requirements.txt backend/requirements.txt
-RUN pip install --upgrade pip && \
-    pip install -r backend/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r backend/requirements.txt
 
 # Copy backend application code
 COPY backend/ backend/
@@ -58,7 +52,7 @@ RUN mkdir -p backend/uploads
 COPY --from=frontend-builder /app/frontend/build frontend/build
 
 # Create non-root user and fix permissions
-RUN adduser --disabled-password --gecos "" appuser && \
+RUN adduser --disabled-password --gecos "" --no-create-home appuser && \
     chown -R appuser:appuser /app
 USER appuser
 

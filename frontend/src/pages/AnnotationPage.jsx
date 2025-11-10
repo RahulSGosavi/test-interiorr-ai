@@ -54,7 +54,7 @@ const AnnotationPage = () => {
   const [zoom, setZoom] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [numPages, setNumPages] = useState(1);
-  const [strokeWidth, setStrokeWidth] = useState(4);
+  const [strokeWidth, setStrokeWidth] = useState(1);
   const [strokeColor, setStrokeColor] = useState("#3B82F6");
   const [strokeStyle, setStrokeStyle] = useState("solid");
 
