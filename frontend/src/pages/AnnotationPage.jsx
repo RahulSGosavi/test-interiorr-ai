@@ -5,7 +5,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import { filesAPI, annotationsAPI } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Home, Menu } from "lucide-react";
+import { ArrowLeft, Home, Menu, ChevronLeft, ChevronRight, Download, Save } from "lucide-react";
 import AnnotationToolbar from "@/components/AnnotationToolbar";
 import CadCanvasEditor from "@/components/CadCanvasEditor";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -724,59 +724,55 @@ const AnnotationPage = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 fixed inset-0">
-      <header className="h-12 flex items-center justify-between px-3 border-b border-slate-900/80 bg-slate-950/70 backdrop-blur flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <header className="h-12 flex items-center justify-between px-2 sm:px-3 border-b border-slate-900/80 bg-slate-950/70 backdrop-blur flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate("/")}
             data-testid="home-button"
-            className="text-slate-200 hover:bg-slate-800 h-8 px-2 text-xs"
+            className="text-slate-200 hover:bg-slate-800 h-7 sm:h-8 px-1.5 sm:px-2 text-xs"
             title="Go to Home"
           >
-            <Home className="w-3.5 h-3.5 mr-1" />
-            <span className="hidden sm:inline">Home</span>
+            <Home className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline ml-1">Home</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate(`/file/${fileId}`)}
             data-testid="menu-button"
-            className="text-slate-200 hover:bg-slate-800 h-8 px-2 text-xs"
+            className="text-slate-200 hover:bg-slate-800 h-7 sm:h-8 px-1.5 sm:px-2 text-xs"
             title="Go to File Menu"
           >
-            <Menu className="w-3.5 h-3.5 mr-1" />
-            <span className="hidden sm:inline">Menu</span>
+            <Menu className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline ml-1">Menu</span>
           </Button>
-          <div className="h-5 w-px bg-slate-800 hidden sm:block" />
-          <div>
-            <h1 className="text-xs font-semibold">CAD Annotation</h1>
-            <p className="text-[9px] text-slate-400 max-w-xs truncate hidden lg:block">{file?.name}</p>
+          <div className="h-4 w-px bg-slate-800 hidden sm:block" />
+          <div className="min-w-0">
+            <h1 className="text-[10px] sm:text-xs font-semibold truncate">CAD Annotation</h1>
+            <p className="text-[8px] sm:text-[9px] text-slate-400 truncate hidden lg:block max-w-[120px] sm:max-w-xs">{file?.name}</p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] flex-wrap">
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-900/60 border border-slate-800 uppercase tracking-wide">
-            <span className="text-slate-400 text-[9px]">Active</span>
-            <span className="font-semibold text-slate-100 capitalize text-[10px]">{activeTool.replace("-", " ")}</span>
+        <div className="flex items-center gap-1 text-[9px] sm:text-[10px] flex-shrink-0">
+          <div className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-900/60 border border-slate-800">
+            <span className="text-slate-400 text-[8px] sm:text-[9px]">Active</span>
+            <span className="font-semibold text-slate-100 capitalize text-[9px] sm:text-[10px]">{activeTool.replace("-", " ")}</span>
           </div>
-          <div className="px-2 py-0.5 rounded-full bg-slate-900/60 border border-slate-800 text-slate-300 text-[10px]">
+          <div className="px-1.5 py-0.5 rounded-full bg-slate-900/60 border border-slate-800 text-slate-300 text-[9px] sm:text-[10px]">
             {Math.round(zoom * 100)}%
           </div>
-          {canvasStatus.loading ? (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/40 text-blue-200">
+          {canvasStatus.loading && (
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/40 text-blue-200">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-300" />
               </span>
-              <span className="font-medium text-[9px]">{canvasStatus.message || "Loading..."}</span>
+              <span className="font-medium text-[8px] sm:text-[9px] hidden sm:inline">{canvasStatus.message || "Loading..."}</span>
             </div>
-          ) : canvasStatus.message ? (
-            <div className="px-2 py-0.5 rounded-full bg-slate-900/60 border border-slate-800 text-slate-300 text-[10px]">
-              {canvasStatus.message}
-            </div>
-          ) : null}
+          )}
           <div
-            className={`px-2 py-0.5 rounded-full border text-[10px] ${
+            className={`px-1.5 py-0.5 rounded-full border text-[9px] sm:text-[10px] ${
               isSaved
                 ? "border-emerald-500/40 text-emerald-200 bg-emerald-500/10"
                 : "border-amber-500/40 text-amber-200 bg-amber-500/10"
@@ -788,28 +784,31 @@ const AnnotationPage = () => {
       </header>
 
       <main className="flex-1 flex overflow-hidden">
-        <AnnotationToolbar
-          activeTool={activeTool}
-          onToolSelect={handleToolSelect}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
-          onFitToScreen={handleFitToScreen}
-          onCopy={handleCopySelection}
-          onRotate={handleRotateSelection}
-          onScale={handleScaleSelection}
-          onSave={handleSave}
-          onDownload={handleDownload}
-          onPrevPage={handlePrevPage}
-          onNextPage={handleNextPage}
-          currentPage={currentPage}
-          numPages={numPages}
-          disabled={controlsDisabled}
-        />
+        {/* Sidebar - Hidden on tablet and below */}
+        <div className="hidden lg:block">
+          <AnnotationToolbar
+            activeTool={activeTool}
+            onToolSelect={handleToolSelect}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onFitToScreen={handleFitToScreen}
+            onCopy={handleCopySelection}
+            onRotate={handleRotateSelection}
+            onScale={handleScaleSelection}
+            onSave={handleSave}
+            onDownload={handleDownload}
+            onPrevPage={handlePrevPage}
+            onNextPage={handleNextPage}
+            currentPage={currentPage}
+            numPages={numPages}
+            disabled={controlsDisabled}
+          />
+        </div>
 
         <section className="flex-1 flex flex-col min-h-0">
-          <div className="h-14 px-3 border-b border-slate-900 bg-slate-950/80 backdrop-blur flex items-center justify-between flex-shrink-0 overflow-x-auto gap-4">
+          <div className="px-2 sm:px-3 py-2 border-b border-slate-900 bg-slate-950/80 backdrop-blur flex items-center justify-between flex-shrink-0 overflow-x-auto gap-2 sm:gap-4">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex flex-col gap-0.5">
                 <span className="text-[9px] uppercase tracking-wider text-slate-500">Width</span>
@@ -924,6 +923,63 @@ const AnnotationPage = () => {
               disabled={controlsDisabled}
               measurementSettings={{ unit: measurementUnit, unitsPerPixel }}
             />
+          </div>
+
+          {/* Mobile/Tablet Bottom Bar - Visible only on lg and below */}
+          <div className="lg:hidden flex-shrink-0 border-t border-slate-900 bg-slate-950/95 backdrop-blur px-2 py-2">
+            <div className="flex items-center justify-between gap-2">
+              {/* Page Navigation */}
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrevPage}
+                  disabled={controlsDisabled || currentPage <= 1}
+                  className="h-8 px-2 text-[10px] bg-slate-900/70 border-slate-800 text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+                  data-testid="mobile-prev-page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </Button>
+                <div className="px-2 py-1 bg-slate-900/60 border border-slate-800 rounded text-[10px] text-slate-300 min-w-[50px] text-center">
+                  {currentPage}/{numPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={controlsDisabled || currentPage >= numPages}
+                  className="h-8 px-2 text-[10px] bg-slate-900/70 border-slate-800 text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+                  data-testid="mobile-next-page"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+
+              {/* Save & Download Buttons */}
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  disabled={controlsDisabled}
+                  className="h-8 px-2 text-[10px] bg-blue-600/90 border-blue-500 text-white hover:bg-blue-500 disabled:opacity-50"
+                  data-testid="mobile-download-button"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1" />
+                  <span className="hidden sm:inline">Download</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={controlsDisabled}
+                  className="h-8 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold disabled:opacity-50"
+                  data-testid="mobile-save-button"
+                >
+                  <Save className="w-3.5 h-3.5 mr-1" />
+                  <span className="hidden sm:inline">Save</span>
+                </Button>
+              </div>
+            </div>
           </div>
         </section>
       </main>
