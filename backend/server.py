@@ -96,6 +96,17 @@ class AIResponse(PydanticBaseModel):
     table: Optional[List[Dict[str, Any]]] = None
     provider: str
 
+# ===== Health Check =====
+@api_router.get("/health")
+def health_check():
+    """Health check endpoint for Render"""
+    return {
+        "status": "healthy",
+        "database": "connected" if engine else "unavailable",
+        "upload_dir": str(UPLOAD_DIR),
+        "upload_dir_exists": UPLOAD_DIR.exists()
+    }
+
 # ===== Auth Helpers =====
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)

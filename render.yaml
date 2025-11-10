@@ -1,31 +1,31 @@
 services:
   - type: web
-    name: annotation-ai-suite
-    env: python
-    region: oregon
-    plan: starter
-    buildCommand: bash render-build.sh
-    startCommand: bash render-start.sh
+    name: annotation-ai-app
+    env: docker
+    plan: free
+    # Auto deploy from GitHub
+    autoDeploy: true
+    # Health check
+    healthCheckPath: /api/health
+    # Persistent disk for SQLite database and uploads
+    disk:
+      name: app-data
+      mountPath: /app/backend
+      sizeGB: 1
+    # Environment variables (set these in Render dashboard)
     envVars:
-      - key: PORT
-        value: 10000
-      - key: MONGO_URL
-        sync: false
-      - key: DB_NAME
-        value: annotation_db
       - key: SECRET_KEY
         generateValue: true
-      - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: "43200"
-      - key: CORS_ORIGINS
-        value: "*"
+      - key: DATABASE_URL
+        value: ""  # Leave empty to use SQLite, or add PostgreSQL URL
       - key: UPLOAD_DIR
-        value: /opt/render/project/src/backend/uploads
-      - key: EMERGENT_LLM_KEY
-        sync: false
-      - key: REACT_APP_BACKEND_URL
-        sync: false
-    disk:
-      name: uploads
-      mountPath: /opt/render/project/src/backend/uploads
-      sizeGB: 10
+        value: /app/backend/uploads
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 43200
+      - key: NODE_ENV
+        value: production
+      # Optional: AI Provider Keys
+      - key: GEMINI_API_KEY
+        sync: false  # Set manually in dashboard
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in dashboard

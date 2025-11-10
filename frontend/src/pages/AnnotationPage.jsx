@@ -723,8 +723,8 @@ const AnnotationPage = () => {
   const totalElements = snapshot?.shapes?.length ?? snapshot?.objects?.length ?? 0;
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 fixed inset-0">
-      <header className="h-10 sm:h-11 flex items-center justify-between px-2 sm:px-3 border-b border-slate-900/80 bg-slate-950/70 backdrop-blur flex-shrink-0">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 fixed inset-0 safe-area-inset">
+      <header className="h-11 sm:h-11 flex items-center justify-between px-2 sm:px-3 border-b border-slate-900/80 bg-slate-950/70 backdrop-blur flex-shrink-0 safe-area-header">
         <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
           <Button
             variant="ghost"

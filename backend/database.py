@@ -40,24 +40,30 @@ def _initialise_engine() -> Tuple[str, Engine]:
     primary_url = (os.environ.get("DATABASE_URL") or "").strip()
     fallback_url = (os.environ.get("FALLBACK_DATABASE_URL") or "").strip() or DEFAULT_SQLITE_URL
 
+    # For PostgreSQL URLs, convert postgres:// to postgresql://
+    if primary_url.startswith("postgres://"):
+        primary_url = primary_url.replace("postgres://", "postgresql://", 1)
+
     if primary_url:
         try:
             engine_candidate = _build_engine(primary_url)
             _verify_connection(engine_candidate)
+            logger.info("✅ Successfully connected to DATABASE_URL")
             return primary_url, engine_candidate
         except (OperationalError, SQLAlchemyError) as exc:
             logger.warning(
-                "Could not connect using DATABASE_URL (%s). "
+                "⚠️  Could not connect using DATABASE_URL (%s). "
                 "Falling back to %s. Original error: %s",
                 primary_url,
                 fallback_url,
                 exc,
             )
     else:
-        logger.info("DATABASE_URL not set. Using fallback database at %s", fallback_url)
+        logger.info("📝 DATABASE_URL not set. Using fallback database at %s", fallback_url)
 
     engine_candidate = _build_engine(fallback_url)
     _verify_connection(engine_candidate)
+    logger.info("✅ Using SQLite database at %s", fallback_url)
     return fallback_url, engine_candidate
 
 ACTIVE_DATABASE_URL, engine = _initialise_engine()
