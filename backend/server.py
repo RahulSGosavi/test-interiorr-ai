@@ -1570,16 +1570,16 @@ app.include_router(api_router)
 
 # ===== CORS Configuration =====
 cors_origins_raw = os.environ.get("CORS_ORIGINS", "*")
-cors_allow_credentials_raw = os.environ.get("CORS_ALLOW_CREDENTIALS", "true")
+cors_allow_credentials_raw = os.environ.get("CORS_ALLOW_CREDENTIALS", "false")
 
 allow_credentials = cors_allow_credentials_raw.lower() == "true"
 
 if cors_origins_raw.strip() == "*":
     allow_origins = ["*"]
     if allow_credentials:
-        logger.warning(
-            "CORS_ORIGINS='*' with credentials enabled. "
-            "Disabling credentials so wildcard origin is permitted."
+        logger.info(
+            "CORS_ORIGINS='*' while credentials were requested. "
+            "Credentials have been disabled so wildcard origin remains valid."
         )
         allow_credentials = False
 else:
