@@ -11,8 +11,9 @@ Usage:
 
 import os
 from pathlib import Path
+from typing import cast
 from database import get_db, engine
-from models import DBFile
+from models import File as DBFile
 from sqlalchemy.orm import Session
 
 def migrate_file_paths():
@@ -28,7 +29,7 @@ def migrate_file_paths():
         updated_count = 0
         
         for file_obj in files:
-            old_path = file_obj.file_path
+            old_path = cast(str, file_obj.file_path)
             path = Path(old_path)
             
             # Check if path is absolute
@@ -40,7 +41,7 @@ def migrate_file_paths():
                 print(f"  Old: {old_path}")
                 print(f"  New: {filename}")
                 
-                file_obj.file_path = filename
+                file_obj.file_path = filename  # type: ignore[assignment]
                 updated_count += 1
             else:
                 print(f"File ID {file_obj.id} already has relative path: {old_path}")

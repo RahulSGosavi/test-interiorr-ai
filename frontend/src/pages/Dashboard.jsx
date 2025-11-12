@@ -71,7 +71,7 @@ const Dashboard = () => {
               <Sparkles className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold" className="font-semibold" data-testid="app-title">
+              <h1 className="text-2xl font-bold" data-testid="app-title">
                 Interior Design AI
               </h1>
               <p className="text-sm text-gray-500">Welcome, {user?.name}</p>

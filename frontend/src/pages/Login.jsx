@@ -48,7 +48,7 @@ const Login = () => {
               <Sparkles className="w-8 h-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold" className="font-semibold">
+          <CardTitle className="text-3xl font-bold">
             Interior Design AI Suite
           </CardTitle>
           <CardDescription className="text-base">

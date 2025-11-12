@@ -51,7 +51,7 @@ const Signup = () => {
               <Sparkles className="w-8 h-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold" className="font-semibold">
+          <CardTitle className="text-3xl font-bold">
             Join Interior Design AI
           </CardTitle>
           <CardDescription className="text-base">

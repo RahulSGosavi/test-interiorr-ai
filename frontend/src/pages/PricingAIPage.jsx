@@ -155,7 +155,7 @@ const PricingAIPage = () => {
               </div>
 
               <div className="mt-4 pt-4 border-t border-gray-200">
-                <p className="text-xs font-bold text-gray-700 mb-2">💡 Suggested Questions</p>
+                <p className="text-xs font-bold text-gray-700 mb-2"> Suggested Questions</p>
                 <div className="space-y-2">
                   {suggestedQuestions.map((q, idx) => (
                     <button
@@ -234,9 +234,6 @@ const PricingAIPage = () => {
                                   </tbody>
                                 </table>
                               </div>
-                            )}
-                            {msg.provider && (
-                              <p className="text-[9px] sm:text-[10px] mt-1 opacity-70">By {msg.provider}</p>
                             )}
                           </div>
                         </motion.div>

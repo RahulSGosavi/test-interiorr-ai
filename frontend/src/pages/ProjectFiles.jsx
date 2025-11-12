@@ -142,7 +142,7 @@ const ProjectFiles = () => {
                 <ArrowLeft className="w-5 h-5" />
               </Button>
               <div>
-                <h1 className="text-2xl font-bold" className="font-semibold" data-testid="project-title">
+                <h1 className="text-2xl font-bold" data-testid="project-title">
                   {project?.name}
                 </h1>
                 <p className="text-sm text-gray-500">Manage files and folders</p>
