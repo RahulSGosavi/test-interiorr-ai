@@ -126,15 +126,24 @@ class MultilingualNLP:
             return text
         
         try:
-            from googletrans import Translator  # type: ignore[reportMissingImports]
-            
-            translator = Translator()
-            translated = translator.translate(text, src=detected_lang, dest=target_lang)
-            logger.info(f"Translated from {detected_lang} to {target_lang}: {translated.text[:50]}...")
-            return translated.text
+            # Try deep-translator first (more actively maintained, no httpx conflicts)
+            try:
+                from deep_translator import GoogleTranslator  # type: ignore[reportMissingImports]
+                translator = GoogleTranslator(source=detected_lang, target=target_lang)
+                translated = translator.translate(text)
+                logger.info(f"Translated from {detected_lang} to {target_lang}: {translated[:50]}...")
+                return translated
+            except ImportError:
+                # Fallback to googletrans if deep-translator not available
+                from googletrans import Translator  # type: ignore[reportMissingImports]
+                translator = Translator()
+                translated = translator.translate(text, src=detected_lang, dest=target_lang)
+                logger.info(f"Translated from {detected_lang} to {target_lang}: {translated.text[:50]}...")
+                return translated.text
             
         except ImportError:
-            logger.warning("googletrans not available, returning original text")
+            logger.warning("Translation libraries not available (deep-translator or googletrans), returning original text")
+            logger.info("Note: Translation is optional. Install 'deep-translator' for translation support.")
             return text
         except Exception as e:
             logger.warning(f"Translation error: {e}, returning original text")

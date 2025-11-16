@@ -82,7 +82,9 @@ PyMuPDF==1.26.5
 pytesseract>=0.3.10
 opencv-python>=4.5.0
 langdetect>=1.0.9
-googletrans==4.0.0rc1
+# googletrans==4.0.0rc1  # REMOVED: Conflicts with httpx (requires httpx==0.13.3, but openai needs >=0.23.0)
+# Translation is optional - code gracefully falls back if not available
+# Alternative: Use deep-translator if translation is needed: deep-translator>=1.11.4
 pyparsing==3.2.5
 pytest==8.4.2
 python-dateutil==2.9.0.post0
