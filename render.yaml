@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: annotation-ai-app
+    env: docker
+    plan: free
+    # Auto deploy from GitHub
+    autoDeploy: true
+    # Health check
+    healthCheckPath: /api/health
+    # Persistent disk for SQLite database and uploads
+    disk:
+      name: app-data
+      mountPath: /app/backend
+      sizeGB: 1
+    # Environment variables (set these in Render dashboard)
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: ""  # Leave empty to use SQLite, or add PostgreSQL URL
+      - key: UPLOAD_DIR
+        value: /app/backend/uploads
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 43200
+      - key: NODE_ENV
+        value: production
+      # Optional: AI Provider Keys
+      - key: GEMINI_API_KEY
+        sync: false  # Set manually in dashboard
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in dashboard
