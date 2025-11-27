@@ -1,278 +1,168 @@
 """
-Response Generator for Pricing AI
-
-Generates natural, accurate responses using:
-- LLM integration (OpenAI/Gemini)
-- ML-based formatting
-- Context-aware generation
-- Structured data presentation
+Deterministic response generator – formats catalog data without LLM calls.
 """
 
-import logging
-from typing import Dict, Any, List, Optional
+from __future__ import annotations
 
-from nlp_question_analyzer import QuestionIntent, QueryIntent
+import logging
+import re
+from typing import Any, Dict, List, Optional, Tuple
+
+from nlp_question_analyzer import QuestionIntent
+from sku_validator import SKUValidator
 
 logger = logging.getLogger(__name__)
 
 
 class ResponseGenerator:
-    """
-    Generates natural, accurate responses using LLM and ML techniques.
-    """
-    
-    def __init__(self):
-        logger.info("Response Generator initialized")
-    
+    """Template-based formatter for catalog answers."""
+
+    def __init__(self) -> None:
+        self._price_pattern = re.compile(r"\$?\s*(\d[\d,]*(?:\.\d{2})?)")
+
     def generate(
         self,
         question: str,
         question_intent: QuestionIntent,
         relevant_chunks: List[Dict[str, Any]],
         document_data: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """
-        Generate response using LLM and ML techniques.
-        
-        Args:
-            question: User question
-            question_intent: Analyzed question intent
-            relevant_chunks: Retrieved relevant chunks
-            document_data: Full document data
-            context: Optional additional context
-        
-        Returns:
-            Dictionary with answer, sources, reasoning, etc.
-        """
-        # Build context string from relevant chunks
-        context_text = self._build_context(relevant_chunks, document_data)
-        
-        # Generate prompt based on intent
-        system_prompt = self._build_system_prompt(question_intent)
-        user_prompt = self._build_user_prompt(question, context_text, question_intent)
-        
-        # Call LLM (will be integrated with existing LLM calls)
-        # For now, return structured response ready for LLM
+        requested_skus = self._extract_requested_skus(question, question_intent)
+        structured_map = self._structured_skus(document_data)
+        pricing_lines, extracted_prices = self._lookup_prices(requested_skus, structured_map)
+
+        if not pricing_lines:
+            pricing_lines = [
+                "I could not locate those SKUs in the processed catalog. "
+                "Please confirm the file contains them and try again."
+            ]
+
+        context_text = self._build_context_text(relevant_chunks, document_data)
+
         return {
-            "answer": "",  # Will be filled by LLM call
-            "system_prompt": system_prompt,
-            "user_prompt": user_prompt,
-            "sources": self._extract_sources(relevant_chunks),
-            "reasoning": self._generate_reasoning(question_intent, relevant_chunks),
-            "extracted_data": self._extract_structured_data(relevant_chunks),
-            "formatted_data": self._format_data(question_intent, relevant_chunks)
+            "answer": "\n".join(pricing_lines),
+            "sources": self._collect_sources(relevant_chunks, structured_map),
+            "reasoning": "Derived directly from structured catalog data.",
+            "extracted_data": {
+                "context_text": context_text,
+                "user_prompt": question,
+                "system_prompt": None,
+                "prices": extracted_prices,
+            },
+            "formatted_data": {
+                "headers": ["SKU", "Grade", "Price", "Source"],
+                "rows": [
+                    [entry["sku"], entry["grade"], entry["price_display"], entry["source"]]
+                    for entry in extracted_prices
+                ],
+            },
         }
-    
-    def _build_context(
+
+    @staticmethod
+    def _structured_skus(document_data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        structured = document_data.get("structured_data") or {}
+        if isinstance(structured, dict):
+            return structured.get("skus", {}) or {}
+        return {}
+
+    @staticmethod
+    def _extract_requested_skus(question: str, question_intent: QuestionIntent) -> List[str]:
+        if question_intent.entities.get("skus"):
+            return question_intent.entities["skus"]
+        return SKUValidator.extract_skus(question)
+
+    def _lookup_prices(
+        self,
+        requested_skus: List[str],
+        catalog_map: Dict[str, Dict[str, Any]],
+    ) -> Tuple[List[str], List[Dict[str, Any]]]:
+        lines: List[str] = []
+        extracted: List[Dict[str, Any]] = []
+
+        if not requested_skus:
+            return (
+                ["I could not identify any cabinet codes in the question. Please specify SKUs (e.g., B24, W3030)."],
+                extracted,
+            )
+
+        for requested in requested_skus:
+            normalized_query = SKUValidator.normalize_sku(requested)
+            matches = [
+                (sku, info)
+                for sku, info in catalog_map.items()
+                if SKUValidator.normalize_sku(sku) == normalized_query
+            ]
+
+            if not matches:
+                lines.append(f"• {requested}: Not found in the processed catalog.")
+                continue
+
+            for sku, info in matches:
+                prices = info.get("prices") or {}
+                sheet = info.get("sheet", "Catalog")
+                if not prices:
+                    lines.append(f"• {sku} ({sheet}): SKU located but prices missing.")
+                    continue
+
+                price_parts = []
+                for grade, value in sorted(prices.items()):
+                    display_value = f"${value:,.2f}" if isinstance(value, (int, float)) else str(value)
+                    price_parts.append(f"{grade}: {display_value}")
+                    extracted.append(
+                        {
+                            "sku": sku,
+                            "grade": grade,
+                            "price": value,
+                            "price_display": display_value,
+                            "source": sheet,
+                        }
+                    )
+
+                joined = ", ".join(price_parts)
+                lines.append(f"• {sku} ({sheet}) pricing → {joined}")
+
+        return lines, extracted
+
+    @staticmethod
+    def _collect_sources(
+        relevant_chunks: List[Dict[str, Any]],
+        structured_map: Dict[str, Dict[str, Any]],
+    ) -> List[str]:
+        sources = {info.get("sheet", "Catalog") for info in structured_map.values()}
+        for chunk in relevant_chunks:
+            metadata = chunk.get("metadata") or {}
+            desc = []
+            if metadata.get("sheet"):
+                desc.append(f"Sheet {metadata['sheet']}")
+            if metadata.get("page"):
+                desc.append(f"Page {metadata['page']}")
+            if metadata.get("row") is not None:
+                desc.append(f"Row {metadata['row']}")
+            if desc:
+                sources.add(" | ".join(desc))
+        return sorted(filter(None, sources))
+
+    def _build_context_text(
         self,
         relevant_chunks: List[Dict[str, Any]],
-        document_data: Dict[str, Any]
+        document_data: Dict[str, Any],
     ) -> str:
-        """Build context string from relevant chunks."""
+        if document_data.get("raw_context"):
+            return str(document_data["raw_context"])
+
         if not relevant_chunks:
-            return "No relevant information found in the document."
-        
-        context_parts = []
-        for i, chunk in enumerate(relevant_chunks, 1):
-            chunk_text = chunk.get("text", "")
+            return "No relevant text chunks were identified."
+
+        parts = []
+        for idx, chunk in enumerate(relevant_chunks, 1):
             metadata = chunk.get("metadata", {})
-            
-            context_part = f"[Chunk {i}]"
+            prefix = f"[Chunk {idx}]"
             if metadata.get("sku"):
-                context_part += f" SKU: {metadata['sku']}"
+                prefix += f" SKU: {metadata['sku']}"
             if metadata.get("sheet"):
-                context_part += f" Sheet: {metadata['sheet']}"
-            if metadata.get("page"):
-                context_part += f" Page: {metadata['page']}"
-            
-            context_part += f"\n{chunk_text}\n"
-            context_parts.append(context_part)
-        
-        return "\n".join(context_parts)
-    
-    def _build_system_prompt(self, question_intent: QuestionIntent) -> str:
-        """Build system prompt based on question intent."""
-        base_prompt = """You are a friendly, helpful, and conversational pricing catalog assistant. Your personality is professional yet approachable, and you always aim to be genuinely helpful.
-
-PERSONALITY:
-- Be friendly, helpful, and conversational - talk like a knowledgeable colleague
-- Explain WHY, not just WHAT - help users understand the reasoning
-- Use emojis sparingly: ✅ for confirmation, ⚠️ for warnings, 💡 for tips
-- Be proactive - offer to help with calculations, comparisons, or alternatives
-
-FORMATTING RULES:
-- Use **bold** for important product names, SKU codes, and key terms
-- For 3+ items, use tables for easy comparison
-- Group related information with clear headers (## Header)
-- Use bullet points (•) for lists
-- Break long lists into logical groups
-
-RESPONSE LENGTH:
-- Short (simple): 2-3 sentences
-- Medium (moderate): 1-2 paragraphs + table if needed
-- Long (complex): Multiple sections with headers, tables
-
-CONTEXT AWARENESS:
-- Budget mentions → Suggest Choice/standard grades, explain savings
-- Premium mentions → Emphasize Elite features, quality benefits
-- Pricing questions → Always offer to calculate totals
-- Always offer additional help: "Would you like me to calculate the total?"
-
-CRITICAL RULES:
-1. Use ONLY information from the context - never invent or guess
-2. Use exact numbers as shown - never round or approximate unless asked
-3. If information is not in context, say so clearly
-4. Be natural and conversational while remaining accurate
-5. Format responses clearly and professionally
-"""
-        
-        intent_specific = {
-            QueryIntent.PRICE_INQUIRY: """
-For pricing questions:
-- Provide exact prices as shown in context
-- If SKU found but grade not found, list available grades
-- Format: "The [SKU] in [Grade] costs $[EXACT_PRICE]."
-""",
-            QueryIntent.CODE_LISTING: """
-For code listing questions:
-- List all unique codes organized by category
-- Use comma-separated format: "B12, B15, B18"
-- Include counts: "(13 codes)"
-- Format exactly as shown in context
-""",
-            QueryIntent.CALCULATION: """
-For calculation questions:
-- Show step-by-step calculations
-- Use exact prices from context
-- Format: "3x B24 at $445.00 each = $1,335.00"
-- Double-check all arithmetic
-""",
-            QueryIntent.COMPARISON: """
-For comparison questions:
-- List each option with exact price
-- Calculate totals if quantities specified
-- Clearly state which is cheaper/more expensive
-- Show the difference: "cheaper by $75.00"
-""",
-        }
-        
-        specific = intent_specific.get(question_intent.intent, "")
-        return base_prompt + specific
-    
-    def _build_user_prompt(
-        self,
-        question: str,
-        context_text: str,
-        question_intent: QuestionIntent
-    ) -> str:
-        """Build user prompt with question and context."""
-        prompt = f"""Context from document:
-{context_text}
-
-Question: {question}
-
-Please provide a clear, accurate answer based on the context above. If the information is not available, please state that clearly."""
-        
-        if question_intent.has_calculation:
-            prompt += "\n\nIMPORTANT: This question requires calculations. Show all steps and use exact numbers from the context."
-        
-        if question_intent.has_comparison:
-            prompt += "\n\nIMPORTANT: This question requires comparison. List all options and clearly indicate which is better."
-        
-        return prompt
-    
-    def _extract_sources(self, relevant_chunks: List[Dict[str, Any]]) -> List[str]:
-        """Extract source information from chunks."""
-        sources = []
-        for chunk in relevant_chunks:
-            metadata = chunk.get("metadata", {})
-            source_parts = []
-            
-            if metadata.get("sheet"):
-                source_parts.append(f"Sheet: {metadata['sheet']}")
-            if metadata.get("page"):
-                source_parts.append(f"Page: {metadata['page']}")
-            if metadata.get("row") is not None:
-                source_parts.append(f"Row: {metadata['row']}")
-            if metadata.get("sku"):
-                source_parts.append(f"SKU: {metadata['sku']}")
-            
-            if source_parts:
-                sources.append(" | ".join(source_parts))
-            else:
-                sources.append("Document")
-        
-        return sources
-    
-    def _generate_reasoning(
-        self,
-        question_intent: QuestionIntent,
-        relevant_chunks: List[Dict[str, Any]]
-    ) -> Optional[str]:
-        """Generate reasoning for the response."""
-        if not relevant_chunks:
-            return "No relevant information found in the document."
-        
-        reasoning_parts = [
-            f"Query intent: {question_intent.intent.value}",
-            f"Found {len(relevant_chunks)} relevant chunks"
-        ]
-        
-        if question_intent.entities.get("skus"):
-            reasoning_parts.append(
-                f"Looking for SKUs: {', '.join(question_intent.entities['skus'][:3])}"
-            )
-        
-        return "; ".join(reasoning_parts)
-    
-    def _extract_structured_data(
-        self,
-        relevant_chunks: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """Extract structured data from chunks."""
-        all_skus = set()
-        all_prices = []
-        all_grades = set()
-        
-        for chunk in relevant_chunks:
-            entities = chunk.get("entities", {})
-            all_skus.update(entities.get("skus", []))
-            all_prices.extend(entities.get("prices", []))
-            all_grades.update(entities.get("grades", []))
-        
-        return {
-            "skus": sorted(list(all_skus)),
-            "prices": sorted(list(set(all_prices))),
-            "grades": sorted(list(all_grades))
-        }
-    
-    def _format_data(
-        self,
-        question_intent: QuestionIntent,
-        relevant_chunks: List[Dict[str, Any]]
-    ) -> Optional[Any]:
-        """Format data based on intent for structured output."""
-        if question_intent.intent == QueryIntent.CODE_LISTING:
-            # Format as list
-            skus = set()
-            for chunk in relevant_chunks:
-                entities = chunk.get("entities", {})
-                skus.update(entities.get("skus", []))
-            return {"codes": sorted(list(skus))}
-        
-        elif question_intent.intent == QueryIntent.PRICE_INQUIRY:
-            # Format as price table
-            pricing_data = {}
-            for chunk in relevant_chunks:
-                metadata = chunk.get("metadata", {})
-                entities = chunk.get("entities", {})
-                if metadata.get("sku") and entities.get("prices"):
-                    pricing_data[metadata["sku"]] = {
-                        "prices": entities.get("prices", []),
-                        "grades": entities.get("grades", [])
-                    }
-            return {"pricing": pricing_data}
-        
-        return None
+                prefix += f" Sheet: {metadata['sheet']}"
+            text = chunk.get("text", "").strip()
+            parts.append(f"{prefix}\n{text}\n")
+        return "\n".join(parts)
 

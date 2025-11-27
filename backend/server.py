@@ -22,7 +22,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt  # type: ignore
 # Import database, models, and schemas
 from database import get_db, Base, engine
-from models import User, Project, File as DBFile, Annotation, Message, Folder
+from models import User, Project, File as DBFile, Annotation, Message, Folder, DocumentChunk
 from schemas import (
     UserCreate, UserLogin, UserResponse, Token,
     ProjectCreate, ProjectResponse,
@@ -41,6 +41,7 @@ from advanced_document_processor import create_advanced_context
 
 # Bulk Question Processor
 from bulk_question_processor import split_bulk_questions, is_bulk_question, format_bulk_answer
+from universal_document_processor import UniversalDocumentProcessor
 
 # AI Agent imports
 from ai_agent_orchestrator import get_ai_agent, AgentResponse
@@ -89,8 +90,37 @@ def ensure_folder_schema():
             if 'folder_id' not in columns:
                 connection.execute(text('ALTER TABLE files ADD COLUMN folder_id INTEGER'))
                 connection.execute(text('ALTER TABLE files ADD CONSTRAINT files_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL'))
+                columns.add('folder_id')
+
+            file_metadata_columns = {
+                'catalog_type': 'TEXT',
+                'structure_type': 'TEXT',
+                'total_products': 'INTEGER',
+                'confidence_score': 'FLOAT',
+                'processed_data': 'JSON'
+            }
+
+            for column_name, column_type in file_metadata_columns.items():
+                if column_name not in columns:
+                    connection.execute(text(f'ALTER TABLE files ADD COLUMN {column_name} {column_type}'))
     except Exception as e:
         logger.warning(f"Error ensuring folder schema: {e}")
+
+
+def safe_str(value: Any) -> str:
+    """Safely convert any value to string for startswith usage."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return ""
+        first = value[0]
+        if isinstance(first, str):
+            return first
+        return "" if first is None else str(first)
+    if value is None:
+        return ""
+    return str(value)
 
 
 ensure_folder_schema()
@@ -489,6 +519,112 @@ async def _save_uploaded_file(
     return db_file
 
 
+@api_router.post("/files/upload-universal")
+async def upload_file_universal(
+    project_id: Optional[int] = Form(None),
+    file: UploadFile = FormFile(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Universal file upload - handles ANY file type/structure
+    """
+    if project_id is None:
+        raise HTTPException(status_code=400, detail="project_id is required")
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        original_name = file.filename or f"upload-{uuid.uuid4()}"
+        file_ext = Path(original_name).suffix
+        filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = UPLOAD_DIR / filename
+
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(file_path, "wb") as buffer:
+            content = await file.read()
+            await buffer.write(content)
+
+        processor = UniversalDocumentProcessor()
+        result = processor.process_file(str(file_path))
+        metadata = result.get("metadata", {})
+        products = result.get("products", [])
+
+        file_size = os.path.getsize(file_path)
+
+        db_file = DBFile(
+            name=original_name,
+            file_path=filename,
+            file_type=metadata.get("file_type"),
+            file_size=file_size,
+            project_id=project_id,
+            catalog_type=metadata.get("catalog_type"),
+            structure_type=metadata.get("structure_type"),
+            total_products=metadata.get("total_rows"),
+            confidence_score=metadata.get("confidence_score"),
+            processed_data=products,
+        )
+        db.add(db_file)
+        db.commit()
+        db.refresh(db_file)
+
+        return {
+            "success": True,
+            "file_id": db_file.id,
+            "metadata": metadata,
+            "products_found": len(products),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("[Universal Upload] Error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@api_router.post("/debug/reprocess-file/{file_id}")
+async def force_reprocess_file(file_id: int, db: Session = Depends(get_db)):
+    """
+    Force reprocess Excel file with new parser.
+    """
+    db_file = db.query(DBFile).filter(DBFile.id == file_id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    stored_path = cast(str, db_file.file_path)
+    file_path = Path(stored_path)
+    if not file_path.is_absolute():
+        file_path = UPLOAD_DIR / stored_path
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found on disk: {file_path}")
+
+    db.query(DocumentChunk).filter(DocumentChunk.file_id == file_id).delete()
+
+    from rag_document_processor import RAGDocumentProcessor
+
+    processor = RAGDocumentProcessor()
+    products = processor._process_excel(file_path)
+    logging.info("[Reprocess] Found %s products", len(products))
+
+    for product in products:
+        chunk = DocumentChunk(
+            file_id=file_id,
+            content=json.dumps(product, default=str),
+            chunk_index=product.get("row", 0),
+        )
+        db.add(chunk)
+
+    db.commit()
+
+    return {
+        "success": True,
+        "products_found": len(products),
+        "sample_skus": [product.get("sku") for product in products[:10]],
+    }
+
+
 @api_router.get("/files/{file_id}/download")
 def download_file(
     file_id: int,
@@ -769,7 +905,7 @@ def get_annotations(
 
 # ===== Pricing AI Helper Functions =====
 def detect_catalog_type(file_id: int, db: Session) -> str:
-    """Detect catalog type from filename"""
+    """Detect catalog type from filename AND content (material names in headers)"""
     db_file = db.query(DBFile).filter(DBFile.id == file_id).first()
     if not db_file:
         return "UNKNOWN"
@@ -777,15 +913,61 @@ def detect_catalog_type(file_id: int, db: Session) -> str:
     # File model uses 'name' attribute, not 'filename'
     filename_lower = db_file.name.lower()
     
+    # Check filename first
     if '1951' in filename_lower or 'cabinetry' in filename_lower:
-        logging.info(f"[Catalog] Detected 1951 Cabinetry catalog: {db_file.name}")
+        logging.info(f"[Catalog] Detected 1951 Cabinetry catalog from filename: {db_file.name}")
         return "1951_CATALOG"
     elif 'wellborn' in filename_lower or 'aspire' in filename_lower:
-        logging.info(f"[Catalog] Detected Wellborn Aspire catalog: {db_file.name}")
+        logging.info(f"[Catalog] Detected Wellborn Aspire catalog from filename: {db_file.name}")
         return "WELLBORN_CATALOG"
-    else:
-        logging.warning(f"[Catalog] Unknown catalog type for {db_file.name}")
-        return "UNKNOWN"
+    
+    # CRITICAL FIX: Also detect from extracted data (headers/prices) if filename doesn't help
+    # Check if we have any extracted data with material names
+    try:
+        stored_path = cast(str, db_file.file_path)
+        file_path = Path(stored_path)
+        if not file_path.is_absolute():
+            file_path = UPLOAD_DIR / stored_path
+        
+        if file_path.exists() and db_file.file_type in ['xlsx', 'xls', 'excel']:
+            # Quick check of first sheet headers for material names
+            import pandas as pd
+            try:
+                excel_data = pd.read_excel(file_path, sheet_name=None, header=None)
+                if excel_data:
+                    # Check first 10 rows of first sheet for material names
+                    first_sheet = list(excel_data.values())[0]
+                    sample_text = " ".join([
+                        str(val).upper() for row in first_sheet.head(10).values
+                        for val in row if pd.notna(val)
+                    ])
+                    
+                    # 1951 Cabinetry keywords (material names)
+                    cabinetry_1951_keywords = [
+                        "ELITE CHERRY", "ELITE MAPLE", "ELITE DURAFORM", "ELITE PAINTED",
+                        "PREMIUM CHERRY", "PREMIUM MAPLE", "PREMIUM DURAFORM", "PREMIUM PAINTED",
+                        "PRIME CHERRY", "PRIME MAPLE", "PRIME DURAFORM", "PRIME PAINTED",
+                        "CHOICE CHERRY", "CHOICE MAPLE", "CHOICE DURAFORM", "CHOICE PAINTED"
+                    ]
+                    cabinetry_score = sum(1 for kw in cabinetry_1951_keywords if kw in sample_text)
+                    
+                    # Wellborn Aspire keywords
+                    wellborn_keywords = ["RUSH", "CF", "AW", "ASPIRE", "WELLBORN", "GRADE"]
+                    wellborn_score = sum(1 for kw in wellborn_keywords if kw in sample_text)
+                    
+                    if cabinetry_score > 0 and cabinetry_score >= wellborn_score:
+                        logging.info(f"[Catalog] Detected 1951 Cabinetry catalog from content (score: {cabinetry_score}): {db_file.name}")
+                        return "1951_CATALOG"
+                    elif wellborn_score > 0:
+                        logging.info(f"[Catalog] Detected Wellborn Aspire catalog from content (score: {wellborn_score}): {db_file.name}")
+                        return "WELLBORN_CATALOG"
+            except Exception as e:
+                logging.debug(f"[Catalog] Could not analyze content for catalog type: {e}")
+    except Exception as e:
+        logging.debug(f"[Catalog] Could not check file content: {e}")
+    
+    logging.warning(f"[Catalog] Unknown catalog type for {db_file.name}")
+    return "UNKNOWN"
 
 
 def extract_file_content(file_path: Path, file_type: str) -> str:
@@ -852,7 +1034,24 @@ def extract_structured_pricing(file_path: Path) -> Dict[str, Any]:
             "parse_errors": [],
         }
 
-        for sheet_name, df in excel_data.items():
+        # CRITICAL FIX: Prioritize sheets with "SKU Pricing" over "Accessory Pricing"
+        # Sort sheets: "SKU Pricing" first, "Accessory" last
+        sheet_items = list(excel_data.items())
+        def sheet_priority(sheet_item):
+            sheet_name = str(sheet_item[0]).lower()
+            if "sku" in sheet_name and "pricing" in sheet_name:
+                return 0  # Highest priority
+            elif "pricing" in sheet_name and "accessory" not in sheet_name:
+                return 1  # Second priority
+            elif "accessory" in sheet_name:
+                return 2  # Lower priority
+            else:
+                return 3  # Lowest priority
+        
+        sheet_items.sort(key=sheet_priority)
+        logging.info(f"📋 Sheet processing order: {[name for name, _ in sheet_items]}")
+
+        for sheet_name, df in sheet_items:
             logging.info(f"Processing sheet: {sheet_name}")
 
             header_row_idx: Optional[int] = None
@@ -902,13 +1101,71 @@ def extract_structured_pricing(file_path: Path) -> Dict[str, Any]:
                         header_type = "flexible"
                         logging.info(f"Using first row as header for sheet '{sheet_name}'")
 
+            # CRITICAL FIX: Don't skip sheets even if header detection fails
+            # Try to find header by looking for material names (Elite Cherry, Premium, etc.)
             if header_row_idx is None:
-                warning_msg = f"No header row found in sheet '{sheet_name}'. Tried standard format (RUSH/CF/AW) and flexible format."
-                logging.warning(warning_msg)
-                structured_data["parse_errors"].append(warning_msg)
-                continue
+                material_keywords_header = [
+                    "ELITE", "PREMIUM", "PRIME", "CHOICE", "CHERRY", "MAPLE", 
+                    "OAK", "PAINTED", "DURAFORM", "CF", "AW", "GRADE"
+                ]
+                for idx in range(min(10, len(df))):  # Check first 10 rows
+                    row = df.iloc[idx]
+                    row_str = " ".join([str(x) for x in row if pd.notna(x)]).upper()
+                    # Check if row contains material/grade keywords
+                    if any(keyword in row_str for keyword in material_keywords_header):
+                        non_empty = [str(x).strip() for x in row if pd.notna(x) and str(x).strip()]
+                        if len(non_empty) >= 2:  # At least 2 columns
+                            header_row_idx = int(cast(Any, idx))
+                            header_type = "flexible"
+                            logging.info(f"Found header row {header_row_idx} in sheet '{sheet_name}' by material/grade keywords")
+                            break
 
+            # Final fallback: use row 0 if all else fails (don't skip the sheet)
+            if header_row_idx is None:
+                if len(df) > 0:
+                    header_row_idx = 0
+                    header_type = "flexible"
+                    logging.warning(f"No header row found in sheet '{sheet_name}', using row 0 as fallback")
+                    structured_data["parse_errors"].append(f"Sheet '{sheet_name}': Used row 0 as header fallback")
+                else:
+                    # Empty sheet - skip it
+                    logging.warning(f"Sheet '{sheet_name}' is empty, skipping")
+                    continue
+
+            # At this point, header_row_idx is guaranteed to be set (not None)
+            assert header_row_idx is not None, "header_row_idx must be set at this point"
+            
+            # CRITICAL FIX: Handle multi-row headers (merged cells) - check row above too
+            # For 1951 Cabinetry, headers might be in row above (merged cells like "Elite Cherry")
             headers = df.iloc[header_row_idx].fillna("").astype(str).tolist()
+            
+            # If header row is not 0, check row above for merged cell titles
+            header_row_above: Optional[int] = None
+            if header_row_idx > 0:
+                row_above = df.iloc[header_row_idx - 1].fillna("").astype(str).tolist()
+                # Check if row above has material names (Elite Cherry, Premium Cherry, etc.)
+                row_above_text = " ".join([str(x).upper() for x in row_above if x])
+                material_keywords_check = ["ELITE", "PREMIUM", "PRIME", "CHOICE", "CHERRY", "MAPLE", "DURAFORM"]
+                if any(keyword in row_above_text for keyword in material_keywords_check):
+                    header_row_above = header_row_idx - 1
+                    logging.info(f"📋 Found material names in row above header (row {header_row_above})")
+            
+            # Build enhanced headers by combining row above (if exists) with header row
+            enhanced_headers = []
+            for col_idx in range(len(headers)):
+                header_val = headers[col_idx].strip()
+                # If header is empty and we have row above, use row above value
+                if (not header_val or header_val.upper() in ["NAN", ""]) and header_row_above is not None:
+                    try:
+                        above_val = str(df.iloc[header_row_above, col_idx]).strip()
+                        if above_val and above_val.upper() not in ["NAN", ""]:
+                            header_val = above_val
+                            logging.debug(f"Using header from row {header_row_above}: {header_val} (col {col_idx})")
+                    except (IndexError, KeyError):
+                        pass
+                enhanced_headers.append(header_val)
+            
+            headers = enhanced_headers
 
             sku_col_idx: Optional[int] = None
             pricing_start_idx: Optional[int] = None
@@ -946,22 +1203,214 @@ def extract_structured_pricing(file_path: Path) -> Dict[str, Any]:
             if pricing_start_idx is None:
                 pricing_start_idx = sku_col_idx + 1
 
+            # CRITICAL FIX: Validate price columns by checking both headers AND values
+            # This prevents reading weights, dimensions, or other non-price data
             clean_headers: list[str] = []
-            for header_value in headers[pricing_start_idx:]:
-                normalized = str(header_value).strip().upper()
-                if not normalized or normalized == "NAN":
+            price_column_indices: list[int] = []  # Track which column indices are actual price columns
+            
+            # Keywords that indicate NON-price columns (should be excluded)
+            non_price_keywords = [
+                "WEIGHT", "WT", "LBS", "LB", "KG", "DIMENSION", "DIM", "WIDTH", "W", "HEIGHT", "H", 
+                "DEPTH", "D", "DEEP", "HIGH", "WIDE", "INCH", "IN", "CM", "MM", "LEAD", "TIME", 
+                "DAYS", "WEEK", "SHIP", "PACK", "BOX", "CARTON", "QTY", "QUANTITY", "UNIT", "UOM",
+                "RUSH", "SPECIES", "CHARGE", "OPT", "OPTION", "Y", "N", "YES", "NO", "RECEIVES"
+            ]
+            
+            # Calculate data_start for validation (will be used later for actual extraction)
+            # header_row_idx is guaranteed to be set at this point (fallback ensures it's at least 0)
+            data_start = (header_row_idx or 0) + 1  # Start from row after header
+            
+            # Sample rows to validate price ranges (check first 10 data rows)
+            sample_rows = min(10, len(df) - data_start) if data_start < len(df) else 0
+            
+            for col_idx in range(pricing_start_idx, len(headers)):
+                # CRITICAL FIX: Use enhanced_headers which already includes merged cell values
+                # enhanced_headers were built above by combining header row with row above
+                header_value = headers[col_idx] if col_idx < len(headers) else ""
+                original_header_value = str(header_value).strip() if header_value else ""
+                normalized = original_header_value.upper() if original_header_value else ""
+                
+                # Skip empty headers - already handled by enhanced_headers above
+                if not normalized or normalized == "NAN" or normalized == "":
+                    # Skip truly empty columns
                     continue
-                if "CF" in normalized:
-                    clean_headers.append("CF")
-                elif "AW" in normalized:
-                    clean_headers.append("AW")
-                elif "APC" in normalized:
-                    clean_headers.append("APC")
-                elif normalized.isdigit() or "GRADE" in normalized:
-                    grade_num = "".join(filter(str.isdigit, normalized))
-                    clean_headers.append(f"GRADE_{grade_num}" if grade_num else normalized)
+                
+                # Skip columns with non-price keywords
+                if any(keyword in normalized for keyword in non_price_keywords):
+                    logging.debug(f"Skipping non-price column: {normalized} (index {col_idx})")
+                    continue
+                
+                # Validate that this column contains actual prices (not weights/dimensions)
+                # Check sample values to ensure they're in reasonable price range
+                has_valid_prices = False
+                price_count = 0
+                
+                # Check for material/grade keywords (case-insensitive) - check BEFORE validation
+                # Material-named columns should be more lenient in validation
+                material_keywords = [
+                    "ELITE", "PREMIUM", "PRIME", "CHOICE", "ARC", "BEL",
+                    "CHERRY", "MAPLE", "OAK", "PAINTED", "DURAFORM",
+                    "DURA-FORM", "CHERRYWOOD", "MAPLEWOOD"
+                ]
+                is_material_named = any(keyword in normalized for keyword in material_keywords)
+                
+                if sample_rows > 0:
+                    for row_idx in range(data_start, min(data_start + sample_rows, len(df))):
+                        try:
+                            cell_value = df.iloc[row_idx, col_idx]
+                            if pd.notna(cell_value):
+                                try:
+                                    # Try to parse as number
+                                    if isinstance(cell_value, (int, float)):
+                                        val = float(cell_value)
+                                    else:
+                                        val_str = str(cell_value).replace("$", "").replace(",", "").strip()
+                                        val = float(val_str)
+                                    
+                                    # CRITICAL FIX: Prices should be in range $100-$10,000 for cabinets
+                                    # Values like $8, $14, $40, $45, $58 are weights/dimensions/lead times, NOT prices
+                                    # Actual cabinet prices are typically $100-$10,000 (most are $300-$1,500)
+                                    if 100 <= val <= 10000:
+                                        price_count += 1
+                                        # For material-named columns, be more lenient (only need 1-2 valid prices)
+                                        # For other columns, require 3 valid prices
+                                        required_count = 2 if is_material_named else 3
+                                        if price_count >= required_count:
+                                            has_valid_prices = True
+                                            break
+                                except (ValueError, TypeError):
+                                    pass
+                        except (IndexError, KeyError):
+                            pass
+                
+                # Only include columns that have valid prices OR match known price headers
+                is_known_price_header = (
+                    "CF" in normalized or 
+                    "AW" in normalized or 
+                    "APC" in normalized or
+                    normalized.isdigit() or 
+                    "GRADE" in normalized or
+                    is_material_named  # Material-named columns are always considered price columns
+                )
+                
+                # Include if has valid prices OR is known price header (especially material-named)
+                # For material-named columns, include even if validation didn't pass (might have sparse data)
+                if has_valid_prices or (is_known_price_header and (is_material_named or has_valid_prices or price_count > 0)):
+                    # Determine header name - preserve original casing for better AI matching
+                    # Use original_header_value which may have been fetched from row above (merged cells)
+                    original_header = original_header_value if original_header_value else str(header_value).strip()
+                    
+                    if "CF" in normalized:
+                        header_name = "CF"
+                    elif "AW" in normalized:
+                        header_name = "AW"
+                    elif "APC" in normalized:
+                        header_name = "APC"
+                    elif normalized.isdigit() or "GRADE" in normalized:
+                        grade_num = "".join(filter(str.isdigit, normalized))
+                        header_name = f"GRADE_{grade_num}" if grade_num else normalized
+                    else:
+                        # CRITICAL FIX: Parse multi-line headers for 1951 Cabinetry
+                        # Headers like "ELITE CHERRY\nELITE DURAFORM (TEXTURED)" need to be parsed
+                        # Extract the primary grade name (first line or best match)
+                        if original_header and ("\n" in original_header or "\r" in original_header):
+                            # Multi-line header - extract primary grade name
+                            lines = original_header.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+                            primary_line = lines[0].strip() if lines else original_header.strip()
+                            
+                            # Check each line for grade keywords and use the first one that matches
+                            grade_patterns = [
+                                ("ELITE CHERRY", "Elite Cherry"),
+                                ("PREMIUM CHERRY", "Premium Cherry"),
+                                ("PRIME CHERRY", "Prime Cherry"),
+                                ("PRIME MAPLE", "Prime Maple"),
+                                ("PREMIUM MAPLE", "Premium Maple"),
+                                ("ELITE MAPLE", "Elite Maple"),
+                                ("ELITE PAINTED", "Elite Painted"),
+                                ("PREMIUM PAINTED", "Premium Painted"),
+                                ("PRIME PAINTED", "Prime Painted"),
+                                ("PRIME DURAFORM", "Prime Duraform"),
+                                ("PREMIUM DURAFORM", "Premium Duraform"),
+                                ("ELITE DURAFORM", "Elite Duraform"),
+                                ("CHOICE DURAFORM", "Choice Duraform"),
+                                ("CHOICE MAPLE", "Choice Maple"),
+                                ("CHOICE PAINTED", "Choice Painted"),
+                            ]
+                            
+                            header_name = primary_line  # Default to first line
+                            for pattern, display_name in grade_patterns:
+                                if pattern in original_header.upper():
+                                    header_name = display_name
+                                    logging.info(f"📋 Parsed multi-line header: '{original_header[:50]}...' -> '{header_name}'")
+                                    break
+                        elif original_header and original_header.upper() != normalized:
+                            # Use original if it's different from normalized (preserves casing)
+                            header_name = original_header
+                        elif original_header:
+                            header_name = original_header
+                        elif normalized and normalized not in ["NAN", ""]:
+                            # Use normalized as fallback if original is empty
+                            header_name = normalized
+                        else:
+                            # CRITICAL FIX: If header is empty but we have valid prices, try to infer grade name
+                            # Check if this is a 1951 Cabinetry catalog by checking if we already found material-named columns
+                            # For 1951 Cabinetry, typical order is: Elite Cherry, Premium Cherry, Prime Cherry, Prime Maple, Choice Duraform
+                            if is_material_named or has_valid_prices:
+                                # Try to infer from column position relative to other identified columns
+                                # Get the index of this column in the price columns list
+                                col_position_in_price_cols = len(price_column_indices)
+                                
+                                # Try to check adjacent columns for headers
+                                adjacent_headers = []
+                                for offset in [-2, -1, 1, 2]:
+                                    adj_col_idx = col_idx + offset
+                                    if 0 <= adj_col_idx < len(headers):
+                                        adj_header = str(headers[adj_col_idx]).strip().upper()
+                                        if adj_header and adj_header not in ["NAN", ""]:
+                                            adjacent_headers.append(adj_header)
+                                
+                                # Check if any adjacent header has grade keywords
+                                grade_patterns_check = [
+                                    ("ELITE CHERRY", "Elite Cherry"),
+                                    ("PREMIUM CHERRY", "Premium Cherry"),
+                                    ("PRIME CHERRY", "Prime Cherry"),
+                                    ("PRIME MAPLE", "Prime Maple"),
+                                    ("CHOICE DURAFORM", "Choice Duraform"),
+                                ]
+                                
+                                header_name = None
+                                for adj_header in adjacent_headers:
+                                    for pattern, display_name in grade_patterns_check:
+                                        if pattern in adj_header:
+                                            # Infer based on typical order: if adjacent is Elite, this might be Premium, etc.
+                                            header_name = display_name
+                                            logging.info(f"📋 Inferred header from adjacent column: '{header_name}' for column {col_idx}")
+                                            break
+                                    if header_name:
+                                        break
+                                
+                                # If still no name, use position-based inference for 1951 Cabinetry
+                                if not header_name and has_valid_prices:
+                                    # Typical 1951 Cabinetry column order (starting from first price column)
+                                    typical_grades = ["Elite Cherry", "Premium Cherry", "Prime Cherry", "Prime Maple", "Choice Duraform"]
+                                    if col_position_in_price_cols < len(typical_grades):
+                                        header_name = typical_grades[col_position_in_price_cols]
+                                        logging.info(f"📋 Inferred header from position: '{header_name}' for column {col_idx} (position {col_position_in_price_cols})")
+                                
+                                if not header_name:
+                                    # Last resort: use column index (should rarely happen)
+                                    header_name = f"Column_{col_idx + 1}"
+                                    logging.warning(f"⚠️ Using fallback header name for column {col_idx}: {header_name} (header was empty)")
+                            else:
+                                # No valid prices and not material-named - skip this column
+                                header_name = f"Column_{col_idx + 1}"
+                                logging.warning(f"⚠️ Using fallback header name for column {col_idx}: {header_name} (no valid prices)")
+                    
+                    clean_headers.append(header_name)
+                    price_column_indices.append(col_idx)
+                    logging.info(f"✅ Validated price column: {header_name} (index {col_idx}, has_valid_prices={has_valid_prices})")
                 else:
-                    clean_headers.append(normalized)
+                    logging.debug(f"❌ Skipping column (not prices): {normalized} (index {col_idx}, price_count={price_count})")
 
             # Note: Even if no pricing headers found, we can still extract SKU codes
             if not clean_headers:
@@ -970,15 +1419,14 @@ def extract_structured_pricing(file_path: Path) -> Dict[str, Any]:
                 structured_data["parse_errors"].append(warning_msg)
                 # Don't continue - allow SKU extraction without prices
 
-            data_start = header_row_idx + 1  # Start from row after header
-
+            # data_start already calculated above for validation
             for idx in range(data_start, len(df)):
                 row = df.iloc[idx]
 
                 if sku_col_idx >= len(row):
                     continue
 
-                sku_raw = str(row.iloc[sku_col_idx]).strip().upper()
+                sku_raw = safe_str(row.iloc[sku_col_idx]).strip().upper()
 
                 # Skip empty, invalid, or note rows
                 if (
@@ -1033,10 +1481,14 @@ def extract_structured_pricing(file_path: Path) -> Dict[str, Any]:
 
                 prices: Dict[str, float] = {}
                 
-                # Only try to extract prices if we have pricing headers
-                if clean_headers:
-                    price_values = row.iloc[pricing_start_idx : pricing_start_idx + len(clean_headers)]
-                    for header, value in zip(clean_headers, price_values):
+                # Only try to extract prices if we have validated price columns
+                if clean_headers and price_column_indices:
+                    # Use the validated column indices to extract prices
+                    for header, col_idx in zip(clean_headers, price_column_indices):
+                        if col_idx >= len(row):
+                            continue
+                        
+                        value = row.iloc[col_idx]
                         if pd.isna(value):
                             continue
 
@@ -1045,7 +1497,7 @@ def extract_structured_pricing(file_path: Path) -> Dict[str, Any]:
                             continue
                         try:
                             # More robust price extraction
-                            numeric_value = str(value).strip()
+                            numeric_value = safe_str(value).strip()
                             # Remove currency symbols, commas, and other non-numeric chars except decimal point and minus
                             numeric_value = numeric_value.replace("$", "").replace(",", "").replace("D", "").replace("-", "").strip()
                             # Keep only digits, decimal point, and minus sign
@@ -1065,20 +1517,80 @@ def extract_structured_pricing(file_path: Path) -> Dict[str, Any]:
                                 continue
                             
                             price = float(numeric_value)
-                            # Expanded price range to handle higher values (0 to 1,000,000)
-                            if price > 0 and price <= 1000000:
+                            # CRITICAL FIX: Validate price is in reasonable range ($100-$10,000 for cabinets)
+                            # Values like $8, $14, $40, $45, $58 are weights/dimensions/lead times, NOT prices
+                            # Actual cabinet prices are typically $100-$10,000 (most are $300-$1,500)
+                            if 100 <= price <= 10000:
                                 prices[header_str] = round(price, 2)  # Round to 2 decimal places for consistency
+                            else:
+                                logging.debug(f"Skipping value {price} for {header_str} (outside price range 100-10000)")
                         except (ValueError, TypeError) as e:
                             logging.debug(f"Failed to parse price value '{value}' for header '{header_str}': {e}")
                             continue
 
                 # Extract SKU even if no prices found (for listing cabinet codes)
-                structured_data["skus"][sku] = {
-                    "sheet": sheet_name,
-                    "prices": prices,  # Empty dict if no prices
-                    "row_index": int(idx),
-                    "raw_sku": sku_raw,
-                }
+                # CRITICAL FIX: Merge SKU data from multiple sheets, but prioritize SKU Pricing sheets
+                # If SKU already exists, check sheet priority - SKU Pricing > Accessory Pricing
+                if sku in structured_data["skus"]:
+                    existing_data = structured_data["skus"][sku]
+                    existing_sheet = existing_data.get("sheet", "")
+                    existing_sheets = existing_data.get("sheets", [existing_sheet])
+                    
+                    # Determine sheet priority (0 = highest, 2+ = lower)
+                    existing_is_accessory = "accessory" in str(existing_sheet).lower()
+                    current_is_accessory = "accessory" in str(sheet_name).lower()
+                    existing_is_sku = "sku" in str(existing_sheet).lower() and "pricing" in str(existing_sheet).lower()
+                    current_is_sku = "sku" in str(sheet_name).lower() and "pricing" in str(sheet_name).lower()
+                    
+                    # Priority rules:
+                    # 1. SKU Pricing sheet always wins over Accessory Pricing
+                    # 2. If both are same type, keep existing (processed first = higher priority)
+                    # 3. Only merge if current sheet is higher priority
+                    should_replace = False
+                    if existing_is_accessory and current_is_sku:
+                        # Current is SKU Pricing, existing is Accessory - REPLACE
+                        should_replace = True
+                        logging.info(f"🔄 Replacing SKU {sku} from '{existing_sheet}' with higher priority '{sheet_name}'")
+                    elif not existing_is_sku and current_is_sku:
+                        # Current is SKU Pricing, existing is not - REPLACE
+                        should_replace = True
+                        logging.info(f"🔄 Replacing SKU {sku} from '{existing_sheet}' with higher priority '{sheet_name}'")
+                    else:
+                        # Keep existing (it's higher or equal priority) - just merge prices
+                        existing_prices = existing_data.get("prices", {})
+                        merged_prices = {**existing_prices, **prices}  # Existing takes precedence
+                        if sheet_name not in existing_sheets:
+                            existing_sheets.append(sheet_name)
+                        
+                        structured_data["skus"][sku] = {
+                            "sheet": existing_sheets[0],  # Keep primary sheet (first/highest priority)
+                            "sheets": existing_sheets,  # All sheets this SKU appears in
+                            "prices": merged_prices,  # Merged prices (existing takes precedence)
+                            "row_index": existing_data.get("row_index", int(idx)),  # Keep original row
+                            "raw_sku": existing_data.get("raw_sku", sku_raw),
+                        }
+                        continue  # Skip adding new entry
+                    
+                    if should_replace:
+                        # Replace with current (higher priority) sheet data
+                        if sheet_name not in existing_sheets:
+                            existing_sheets.append(sheet_name)
+                        structured_data["skus"][sku] = {
+                            "sheet": sheet_name,  # New primary sheet (higher priority)
+                            "sheets": existing_sheets,  # All sheets this SKU appears in
+                            "prices": prices,  # Use current sheet prices (higher priority)
+                            "row_index": int(idx),  # Current row
+                            "raw_sku": sku_raw,
+                        }
+                else:
+                    # New SKU - add it
+                    structured_data["skus"][sku] = {
+                        "sheet": sheet_name,
+                        "sheets": [sheet_name],  # List of sheets this SKU appears in
+                        "prices": prices,  # Empty dict if no prices
+                        "row_index": int(idx),
+                        "raw_sku": sku_raw,
+                    }
                 structured_data["total_rows"] += 1
 
         logging.info(
@@ -1308,7 +1820,8 @@ Please verify:
                     base = base_match.group(1)
                     # Find all SKUs that start with this base code
                     for catalog_sku in data["skus"].keys():
-                        if catalog_sku.upper().startswith(base) and catalog_sku not in matched_skus:
+                        catalog_sku_upper = safe_str(catalog_sku).upper()
+                        if catalog_sku_upper.startswith(base) and catalog_sku not in matched_skus:
                             matched_skus.append(catalog_sku)
 
         # For calculation questions asking for totals/all items, include all pricing data
@@ -1348,11 +1861,19 @@ Please verify:
                 
                 price_list = []
                 for grade, price in sorted_prices:
-                    # Preserve material/finish names as-is
-                    if grade.startswith("GRADE_"):
-                        display_grade = grade.replace("GRADE_", "Grade ")
+                    # CRITICAL FIX: Format grade names properly (elite_cherry -> Elite Cherry)
+                    # NEVER use generic names like "Column_1", "Column_2"
+                    grade_str = safe_str(grade)
+                    
+                    # Convert underscore-separated names to proper format (elite_cherry -> Elite Cherry)
+                    if "_" in grade_str:
+                        display_grade = " ".join(word.capitalize() for word in grade_str.split("_"))
+                    elif grade_str.startswith("GRADE_"):
+                        display_grade = grade_str.replace("GRADE_", "Grade ")
                     else:
-                        display_grade = grade
+                        # Already formatted properly (Elite Cherry, Premium Cherry, etc.)
+                        display_grade = grade_str
+                    
                     price_list.append(f"{display_grade}: ${price:,.2f}")
                 
                 lines.append(f"Prices: {', '.join(price_list)}")
@@ -1366,6 +1887,11 @@ Please verify:
             lines.append("IMPORTANT: Use these EXACT prices for all calculations.")
             return "\n".join(lines)
 
+        # For pricing questions, always include full catalog so AI can search for any SKU
+        is_pricing_query = any(keyword in question_lower for keyword in [
+            "price", "cost", "how much", "pricing", "prices"
+        ])
+        
         if matched_skus:
             lines = [
                 "=" * 70,
@@ -1411,11 +1937,12 @@ Please verify:
                     for grade, price in sorted_prices:
                         # Preserve material/finish names as-is (Elite Cherry, Choice Painted, etc.)
                         # Only normalize if it's a generic grade format
-                        if grade.startswith("GRADE_"):
-                            display_grade = grade.replace("GRADE_", "Grade ")
+                        grade_str = safe_str(grade)
+                        if grade_str.startswith("GRADE_"):
+                            display_grade = grade_str.replace("GRADE_", "Grade ")
                         else:
                             # Use the original header name (e.g., "Elite Cherry", "Choice Painted")
-                            display_grade = grade
+                            display_grade = grade_str
                         # Ensure consistent formatting with 2 decimal places for calculations
                         formatted_price = f"${price:,.2f}"
                         lines.append(f"  • {display_grade}: {formatted_price}")
@@ -1429,6 +1956,62 @@ Please verify:
             if is_calculation:
                 lines.append("REMINDER: Use the exact prices shown above for all calculations.")
                 lines.append("")
+            
+            # CRITICAL FIX: For pricing questions, always include full catalog after matched SKUs
+            # This ensures AI can find the requested SKU even if matching was incorrect
+            if is_pricing_query:
+                lines.extend([
+                    "",
+                    "=" * 70,
+                    "FULL CATALOG DATA (for reference - search all SKUs below)",
+                    "=" * 70,
+                    "",
+                    f"Total SKUs in Catalog: {len(data['skus'])}",
+                    "",
+                    "ALL SKU PRICING DATA:",
+                    "-" * 70,
+                    ""
+                ])
+                
+                # Include all SKUs with their pricing (limit to first 300 for context size)
+                sku_items = list(data["skus"].items())[:300]
+                for sku, sku_data in sku_items:
+                    prices = sku_data["prices"]
+                    if not prices:
+                        continue
+                    
+                    lines.append(f"SKU: {sku}")
+                    
+                    grade_order = {"CF": 0, "AW": 1}
+                    sorted_prices = sorted(
+                        prices.items(),
+                        key=lambda item: (
+                            grade_order.get(item[0], 2),
+                            item[0]
+                        )
+                    )
+                    
+                    price_list = []
+                    for grade, price in sorted_prices:
+                        grade_str = safe_str(grade)
+                        if grade_str.startswith("GRADE_"):
+                            display_grade = grade_str.replace("GRADE_", "Grade ")
+                        else:
+                            display_grade = grade_str
+                        price_list.append(f"{display_grade}: ${price:,.2f}")
+                    
+                    lines.append(f"Prices: {', '.join(price_list)}")
+                    lines.append("")
+                
+                if len(data["skus"]) > 300:
+                    lines.append(f"... (and {len(data['skus']) - 300} more SKUs)")
+                
+                lines.extend([
+                    "-" * 70,
+                    "",
+                    "IMPORTANT: Search the FULL catalog above for the exact SKU mentioned in the question.",
+                    "The matched SKUs above may not include all variations - always check the full catalog."
+                ])
 
             return "\n".join(lines)
 
@@ -1460,7 +2043,8 @@ Please verify:
             
             all_skus = sorted(set(data["skus"].keys()))
             for sku in all_skus:
-                sku_upper = sku.upper().strip()
+                sku_str = safe_str(sku)
+                sku_upper = sku_str.upper().strip()
                 # Extract base code (first letters + digits, ignoring modifiers)
                 base_match = re.match(r'^([A-Z]{1,3}\d{2,})', sku_upper)
                 if not base_match:
@@ -1468,21 +2052,22 @@ Please verify:
                     continue
                     
                 base_code = base_match.group(1)
+                base_code_str = safe_str(base_code)
                 
                 # Categorize by the base code pattern
-                if base_code.startswith("B") and len(base_code) >= 2 and base_code[1].isdigit():
+                if base_code_str.startswith("B") and len(base_code_str) >= 2 and base_code_str[1].isdigit():
                     # Base cabinets: B12, B15, B18, B21, B24, B27, B30, B33, B36, B39, B42, etc.
                     base_cabinets.append(sku)
-                elif base_code.startswith("W") and len(base_code) >= 2 and base_code[1].isdigit():
+                elif base_code_str.startswith("W") and len(base_code_str) >= 2 and base_code_str[1].isdigit():
                     # Wall cabinets: W942, W1242, W1542, W1842, W2430, W3030, W3630, etc.
                     wall_cabinets.append(sku)
-                elif base_code.startswith("SB"):
+                elif base_code_str.startswith("SB"):
                     # Sink bases: SB24, SB30, SB33, SB36, etc.
                     sink_bases.append(sku)
-                elif base_code.startswith("DB"):
+                elif base_code_str.startswith("DB"):
                     # Drawer bases: DB12, DB15, DB18, DB21, DB24, DB30, DB36, etc.
                     drawer_bases.append(sku)
-                elif any(base_code.startswith(prefix) for prefix in ["CW", "CBS", "CWS", "UT", "PB", "OVD", "OVS", "BTB", "FSEP", "BS", "BSS", "BEA", "BEP", "BLC", "BPC", "BPP", "AS", "BCF"]):
+                elif any(base_code_str.startswith(prefix) for prefix in ["CW", "CBS", "CWS", "UT", "PB", "OVD", "OVS", "BTB", "FSEP", "BS", "BSS", "BEA", "BEP", "BLC", "BPC", "BPP", "AS", "BCF"]):
                     # Specialty cabinets
                     specialty.append(sku)
                 else:
@@ -1590,10 +2175,11 @@ Please verify:
                 
                 price_list = []
                 for grade, price in sorted_prices:
-                    if grade.startswith("GRADE_"):
-                        display_grade = grade.replace("GRADE_", "Grade ")
+                    grade_str = safe_str(grade)
+                    if grade_str.startswith("GRADE_"):
+                        display_grade = grade_str.replace("GRADE_", "Grade ")
                     else:
-                        display_grade = grade
+                        display_grade = grade_str
                     price_list.append(f"{display_grade}: ${price:,.2f}")
                 
                 lines.append(f"Prices: {', '.join(price_list)}")
@@ -1685,8 +2271,8 @@ def extract_pdf_structured(file_path: Path) -> str:
 
 def format_ai_response(response: str, question: str) -> str:
     """Format AI response for better readability."""
-    lowered_question = question.lower()
-    formatted = response
+    lowered_question = safe_str(question).lower()
+    formatted = safe_str(response)
 
     if any(word in lowered_question for word in ["list", "all", "show"]):
         if not formatted.startswith(("✓", "✅")):
@@ -2184,9 +2770,9 @@ async def pricing_ai_query(
         # OPTIMIZATION: Get shared context once (file is cached, so this is fast)
         # This avoids re-reading the file for each question
         logger.info("Getting shared context for all questions (file will be cached)...")
-        shared_context = create_advanced_context(file_path, file_type_value, query.question)
+        shared_context = safe_str(create_advanced_context(file_path, file_type_value, query.question))
         if shared_context.startswith("Error:"):
-            shared_context = create_rag_context(file_path, file_type_value, query.question)
+            shared_context = safe_str(create_rag_context(file_path, file_type_value, query.question))
         
         # OPTIMIZATION: Prepare system prompts once (reused for all questions)
         base_system_prompt = EnhancedSystemPrompt.generate(query.question)
@@ -2211,7 +2797,7 @@ async def pricing_ai_query(
                 
                 # Use shared context (file already cached, so this is instant)
                 # No need to get focused context - shared context has all SKUs
-                context = shared_context
+                context = safe_str(shared_context)
                 
                 # Check for errors
                 if context.startswith("Error:") or context.startswith("Error extracting"):
@@ -2283,7 +2869,7 @@ async def pricing_ai_query(
             response_data = agent_response.extracted_data
             # Check if it's a dict from response generator
             if isinstance(response_data, dict) and response_data.get("context_text"):
-                context = response_data["context_text"]
+                context = safe_str(response_data["context_text"])
                 system_prompt = response_data.get("system_prompt")
                 user_prompt = response_data.get("user_prompt")
                 
@@ -2308,12 +2894,12 @@ async def pricing_ai_query(
                 )
             else:
                 # Use advanced document processor for better extraction
-                context = create_advanced_context(file_path, file_type_value, query.question)
+                context = safe_str(create_advanced_context(file_path, file_type_value, query.question))
                 
                 # Fallback to RAG if advanced processor fails
                 if context.startswith("Error:"):
                     logger.warning("Advanced processor failed, falling back to RAG")
-                    context = create_rag_context(file_path, file_type_value, query.question)
+                    context = safe_str(create_rag_context(file_path, file_type_value, query.question))
                 
                 # Include catalog type in system prompt
                 base_system_prompt = EnhancedSystemPrompt.generate(query.question)
@@ -2336,15 +2922,15 @@ async def pricing_ai_query(
                 )
         else:
             # No agent data, use advanced document processor
-            context = create_advanced_context(file_path, file_type_value, query.question)
+            context = safe_str(create_advanced_context(file_path, file_type_value, query.question))
             
             # Fallback to RAG if advanced processor fails
             if context.startswith("Error:"):
                 logger.warning("Advanced processor failed, falling back to RAG")
-                context = create_rag_context(file_path, file_type_value, query.question)
+                context = safe_str(create_rag_context(file_path, file_type_value, query.question))
             
             # Check if context is an error message
-            context_stripped = context.strip()
+            context_stripped = safe_str(context).strip()
             is_error = (
                 context_stripped.startswith("Error:") or 
                 context_stripped.startswith("Error extracting") or
@@ -2354,7 +2940,7 @@ async def pricing_ai_query(
             )
             
             if is_error:
-                error_message = context_stripped
+                error_message = safe_str(context_stripped)
                 logging.error(f"Catalog loading error: {error_message}")
                 if error_message.startswith("Error:"):
                     error_details = error_message[6:].strip()
@@ -2369,8 +2955,10 @@ async def pricing_ai_query(
                     provider=query.provider,
                 )
             
-            # Include catalog type in system prompt
+            # CRITICAL FIX: Always use Enhanced System Prompt for proper formatting
             base_system_prompt = EnhancedSystemPrompt.generate(query.question)
+            logging.info(f"[Prompt] Enhanced system prompt loaded ({len(base_system_prompt)} chars) for query type: {EnhancedSystemPrompt.detect_query_type(query.question)}")
+            
             if catalog_type != "UNKNOWN":
                 catalog_info = f"\n\nCATALOG TYPE: {catalog_type}\n"
                 if catalog_type == "1951_CATALOG":
@@ -2405,14 +2993,14 @@ async def pricing_ai_query(
         logging.error(f"AI Agent error, falling back to advanced processor: {e}", exc_info=True)
         
         # Fallback to advanced document processor
-        context = create_advanced_context(file_path, file_type_value, query.question)
+        context = safe_str(create_advanced_context(file_path, file_type_value, query.question))
         
         # If advanced processor fails, use RAG
         if context.startswith("Error:"):
             logger.warning("Advanced processor failed, using RAG fallback")
-            context = create_rag_context(file_path, file_type_value, query.question)
+            context = safe_str(create_rag_context(file_path, file_type_value, query.question))
         
-        context_stripped = context.strip()
+        context_stripped = safe_str(context).strip()
         is_error = (
             context_stripped.startswith("Error:") or 
             context_stripped.startswith("Error extracting") or
@@ -2420,15 +3008,18 @@ async def pricing_ai_query(
         )
         
         if is_error:
-            error_details = context_stripped[6:].strip() if context_stripped.startswith("Error:") else context_stripped
+            context_stripped_safe = safe_str(context_stripped)
+            error_details = context_stripped_safe[6:].strip() if context_stripped_safe.startswith("Error:") else context_stripped_safe
             return AIResponse(
                 response=f"The catalog data could not be loaded. {error_details}",
                 table=None,
                 provider=query.provider,
             )
         
-        # Include catalog type in system prompt
+        # CRITICAL FIX: Always use Enhanced System Prompt for proper formatting
         base_system_prompt = EnhancedSystemPrompt.generate(query.question)
+        logging.info(f"[Prompt] Enhanced system prompt loaded ({len(base_system_prompt)} chars) for query type: {EnhancedSystemPrompt.detect_query_type(query.question)}")
+        
         if catalog_type != "UNKNOWN":
             catalog_info = f"\n\nCATALOG TYPE: {catalog_type}\n"
             if catalog_type == "1951_CATALOG":
@@ -2576,7 +3167,8 @@ if FRONTEND_BUILD_DIR.exists():
     async def serve_frontend(full_path: str):
         """Serve React app for all non-API routes (for React Router)"""
         # Don't serve frontend for API routes (shouldn't reach here, but safety check)
-        if full_path.startswith("api") or full_path.startswith("/api"):
+        full_path_str = safe_str(full_path)
+        if full_path_str.startswith("api") or full_path_str.startswith("/api"):
             raise HTTPException(status_code=404, detail="Not found")
         
         # Serve index.html for React Router

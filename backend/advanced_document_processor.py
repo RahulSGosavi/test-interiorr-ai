@@ -22,6 +22,22 @@ from file_cache import get_cached_data, set_cached_data
 logger = logging.getLogger(__name__)
 
 
+def safe_str(value: Any) -> str:
+    """Safely convert any value to a string for string-only operations."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return ""
+        first = value[0]
+        if isinstance(first, str):
+            return first
+        return "" if first is None else str(first)
+    if value is None:
+        return ""
+    return str(value)
+
+
 class AdvancedDocumentProcessor:
     """
     Advanced document processor with CV, NLP, and intelligent extraction.
@@ -145,8 +161,25 @@ class AdvancedDocumentProcessor:
                 "chunks": []
             }
             
-            # CRITICAL: Process ALL sheets - don't skip any
-            for sheet_name, df in excel_data.items():
+            # CRITICAL FIX: Prioritize sheets with "SKU Pricing" over "Accessory Pricing"
+            # Sort sheets: "SKU Pricing" first, "Accessory" last
+            sheet_items = list(excel_data.items())
+            def sheet_priority(sheet_item):
+                sheet_name = str(sheet_item[0]).lower()
+                if "sku" in sheet_name and "pricing" in sheet_name:
+                    return 0  # Highest priority
+                elif "pricing" in sheet_name and "accessory" not in sheet_name:
+                    return 1  # Second priority
+                elif "accessory" in sheet_name:
+                    return 2  # Lower priority
+                else:
+                    return 3  # Lowest priority
+            
+            sheet_items.sort(key=sheet_priority)
+            logger.info(f"📋 Sheet processing order: {[name for name, _ in sheet_items]}")
+            
+            # Process sheets in priority order (SKU Pricing first)
+            for sheet_name, df in sheet_items:
                 try:
                     if df.empty:
                         logger.warning(f"⚠️ Sheet '{sheet_name}' is empty, skipping")
@@ -252,10 +285,11 @@ class AdvancedDocumentProcessor:
                 logger.info(f"📊 Sample SKUs found (first 20): {', '.join(sample_skus)}")
                 
                 # Log SKU categories for verification
-                base_count = sum(1 for sku in structured_data["skus"].keys() if sku.startswith("B") and not sku.startswith("DB") and not sku.startswith("SB"))
-                wall_count = sum(1 for sku in structured_data["skus"].keys() if sku.startswith("W"))
-                drawer_count = sum(1 for sku in structured_data["skus"].keys() if sku.startswith("DB"))
-                sink_count = sum(1 for sku in structured_data["skus"].keys() if sku.startswith("SB"))
+                normalized_skus = [safe_str(sku).upper() for sku in structured_data["skus"].keys()]
+                base_count = sum(1 for sku_val in normalized_skus if sku_val.startswith("B") and not sku_val.startswith("DB") and not sku_val.startswith("SB"))
+                wall_count = sum(1 for sku_val in normalized_skus if sku_val.startswith("W"))
+                drawer_count = sum(1 for sku_val in normalized_skus if sku_val.startswith("DB"))
+                sink_count = sum(1 for sku_val in normalized_skus if sku_val.startswith("SB"))
                 
                 logger.info(f"📊 SKU breakdown: {base_count} base, {wall_count} wall, {drawer_count} drawer, {sink_count} sink")
                 
@@ -1059,7 +1093,8 @@ def create_advanced_context(file_path: Path, file_type: str, question: str = "")
             
             # Mark this base code as processed
             if found_exact or found_variants:
-                matched_base_codes_found = len([s for s in matched_skus if s.startswith(base_code)])
+                base_code_str = safe_str(base_code)
+                matched_base_codes_found = len([s for s in matched_skus if safe_str(s).startswith(base_code_str)])
                 logger.info(f"✅ Found {matched_base_codes_found} matching SKU(s) for {query_sku} (base: {base_code})")
                 matched_base_codes.add(base_code)
             else:
@@ -1152,6 +1187,54 @@ def create_advanced_context(file_path: Path, file_type: str, question: str = "")
                 lines.append("NOTE: User requested ALL variants - showing all SKUs matching these base codes.")
             lines.append("")
         
+        # CRITICAL FIX: For pricing questions, always include full catalog after matched SKUs
+        # This ensures AI can find the requested SKU even if matching was incorrect
+        if is_pricing_query and "skus" in structured_data and structured_data["skus"]:
+            total_catalog_skus = len(structured_data["skus"])
+            lines.extend([
+                "",
+                "=" * 70,
+                f"FULL CATALOG DATA (for reference - {total_catalog_skus} total SKUs)",
+                "=" * 70,
+                "",
+                "⚠️ IMPORTANT: Search the FULL catalog below for the exact SKU mentioned in the question.",
+                "The matched SKUs above may not include all variations - always check the full catalog.",
+                "",
+                "-" * 70,
+                ""
+            ])
+            
+            # Include all SKUs with their pricing (limit to first 300 for context size)
+            max_skus_to_show = 300
+            shown = 0
+            for sku, sku_data in list(structured_data["skus"].items())[:max_skus_to_show]:
+                prices = sku_data.get("prices", {})
+                if prices:
+                    lines.append(f"SKU: {sku}")
+                    # CRITICAL FIX: Format grade names properly (elite_cherry -> Elite Cherry)
+                    formatted_price_list = []
+                    for grade, price in sorted(prices.items()):
+                        grade_str = str(grade)
+                        # Convert underscore-separated names to proper format
+                        if "_" in grade_str:
+                            display_grade = " ".join(word.capitalize() for word in grade_str.split("_"))
+                        elif grade_str.startswith("GRADE_"):
+                            display_grade = grade_str.replace("GRADE_", "Grade ")
+                        else:
+                            # Already formatted properly
+                            display_grade = grade_str
+                        formatted_price_list.append(f"{display_grade}: ${price:,.2f}")
+                    lines.append(f"Prices: {', '.join(formatted_price_list)}")
+                    lines.append(f"Sheet: {sku_data.get('sheet', 'N/A')} | Row: {sku_data.get('row_index', 'N/A')}")
+                    lines.append("")
+                    shown += 1
+            
+            if total_catalog_skus > shown:
+                lines.append(f"... and {total_catalog_skus - shown} more SKUs in catalog")
+                lines.append("")
+                lines.append("⚠️ If your requested SKU is not shown above, it may be in the remaining SKUs.")
+                lines.append("")
+        
         lines.append("=" * 70)
         lines.append("")
     
@@ -1196,7 +1279,7 @@ def create_advanced_context(file_path: Path, file_type: str, question: str = "")
             other = []
             
             for sku in all_skus:
-                sku_upper = sku.upper().strip()
+                sku_upper = safe_str(sku).upper().strip()
                 if sku_upper.startswith("B") and len(sku_upper) >= 2 and sku_upper[1].isdigit():
                     base_cabinets.append(sku)
                 elif sku_upper.startswith("W") and len(sku_upper) >= 2 and sku_upper[1].isdigit():

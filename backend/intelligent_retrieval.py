@@ -20,6 +20,22 @@ from nlp_question_analyzer import QuestionIntent
 logger = logging.getLogger(__name__)
 
 
+def safe_str(value: Any) -> str:
+    """Safely convert value to string before string operations."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return ""
+        first = value[0]
+        if isinstance(first, str):
+            return first
+        return "" if first is None else str(first)
+    if value is None:
+        return ""
+    return str(value)
+
+
 class IntelligentRetrieval:
     """
     Intelligent retrieval system that finds relevant information
@@ -128,15 +144,18 @@ class IntelligentRetrieval:
                 q_normalized = q_sku.replace(" ", "").replace("-", "").replace("_", "")
                 chunk_normalized = chunk_sku.replace(" ", "").replace("-", "").replace("_", "")
                 
+                chunk_norm = safe_str(chunk_normalized)
+                q_norm = safe_str(q_normalized)
+                
                 # Exact match gets maximum score
-                if q_normalized == chunk_normalized or chunk_sku == q_sku:
+                if q_norm == chunk_norm or chunk_sku == q_sku:
                     sku_match_score = 1.0
                     break
                 # Prefix match (e.g., B24 matches B24 BUTT, B24 FH)
-                elif chunk_normalized.startswith(q_normalized) or q_normalized.startswith(chunk_normalized):
+                elif chunk_norm.startswith(q_norm) or q_norm.startswith(chunk_norm):
                     sku_match_score = max(sku_match_score, 0.9)
                 # Partial match
-                elif q_normalized in chunk_normalized or chunk_normalized in q_normalized:
+                elif q_norm in chunk_norm or chunk_norm in q_norm:
                     sku_match_score = max(sku_match_score, 0.6)
                 # Check base code match (e.g., B24 matches B24, B24 BUTT, B24 FH)
                 else:
@@ -278,7 +297,7 @@ class IntelligentRetrieval:
         
         # Try prefix matching (same cabinet type)
         prefix = target_sku[:2].upper()
-        prefix_matches = [sku for sku in all_skus if sku.startswith(prefix)][:top_k]
+        prefix_matches = [sku for sku in all_skus if safe_str(sku).startswith(prefix)][:top_k]
         
         if prefix_matches:
             logger.info(f"[Similar SKUs] Found {len(prefix_matches)} with prefix {prefix}")

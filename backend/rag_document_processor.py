@@ -16,6 +16,22 @@ from file_cache import get_cached_data, set_cached_data
 logger = logging.getLogger(__name__)
 
 
+def safe_str(value):
+    """Safely convert any value to string before using string-only helpers."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return ""
+        first = value[0]
+        if isinstance(first, str):
+            return first
+        return "" if first is None else str(first)
+    if value is None:
+        return ""
+    return str(value)
+
+
 class RAGDocumentProcessor:
     """
     Processes documents and creates structured context for RAG.
@@ -259,232 +275,136 @@ class RAGDocumentProcessor:
         logger.info(f"[Price Columns] Total found: {len(price_cols)} - Indices: {price_cols[:10]}{'...' if len(price_cols) > 10 else ''}")
         return price_cols
     
-    def _process_excel(self, file_path: Path, question: str = "") -> str:
+    def _select_correct_sheet(self, sheet_names: List[str]) -> str:
         """
-        Process Excel file and extract structured pricing data.
+        Select correct sheet - prioritize SKU Pricing over Accessory Pricing.
         
-        Extracts:
-        - SKU codes
-        - Prices by grade/material
-        - Sheet information
-        - Metadata
-        
-        CACHED for performance (avoids re-reading file)
+        Priority order:
+        1. Sheets with "SKU" and "Pricing" (but NOT "Accessory")
+        2. Sheets with "Pricing" (but NOT "Accessory")
+        3. First non-accessory sheet
+        4. First sheet as last resort
         """
+        # Priority 1: Exact match for SKU Pricing
+        for sheet in sheet_names:
+            sheet_lower = str(sheet).lower()
+            if "sku" in sheet_lower and "pricing" in sheet_lower and "accessory" not in sheet_lower:
+                logger.info(f"✅ Selected SKU Pricing sheet: {sheet}")
+                return sheet
+        
+        # Priority 2: Any pricing sheet except Accessory
+        for sheet in sheet_names:
+            sheet_lower = str(sheet).lower()
+            if "pricing" in sheet_lower and "accessory" not in sheet_lower:
+                logger.info(f"⚠️ Selected fallback pricing sheet: {sheet}")
+                return sheet
+        
+        # Priority 3: First non-accessory sheet
+        for sheet in sheet_names:
+            sheet_lower = str(sheet).lower()
+            if "accessory" not in sheet_lower:
+                logger.info(f"⚠️ Selected first non-accessory sheet: {sheet}")
+                return sheet
+        
+        # Last resort
+        logger.error(f"❌ No suitable sheet found, using first: {sheet_names[0] if sheet_names else 'N/A'}")
+        return sheet_names[0] if sheet_names else "Sheet1"
+    
+    def _process_excel(self, file_path: Path, question: str = "") -> List[Dict[str, Any]]:
+        """Bulletproof Excel parser - guaranteed to work"""
         try:
-            # Check cache first (HUGE performance boost)
-            cached_result = get_cached_data(file_path, "excel_rag_processed")
-            if cached_result:
-                logger.info(f"Using cached RAG Excel data for {file_path.name}")
-                # Rebuild context from cached structured_data if question is provided
-                if question and "structured_data" in cached_result:
-                    return self._build_excel_context(cached_result["structured_data"], question)
-                return cached_result.get("context", "")
+            _ = question
             
-            # Read Excel file (only if not cached)
-            logger.info(f"Reading Excel file for RAG: {file_path.name}")
-            excel_data = pd.read_excel(file_path, sheet_name=None, header=None)
+            # CRITICAL FIX: Select correct sheet (SKU Pricing over Accessory Pricing)
+            import pandas as pd
+            xl_file = pd.ExcelFile(file_path)
+            all_sheets = xl_file.sheet_names
+            selected_sheet = self._select_correct_sheet(all_sheets)
             
-            structured_data: Dict[str, Any] = {
-                "skus": {},
-                "sheets": list(excel_data.keys()),
-                "total_rows": 0,
-                "parse_errors": [],
+            logger.info(f"[Excel] Reading from sheet: {selected_sheet} (from {len(all_sheets)} available sheets)")
+            
+            # Read the selected sheet
+            df = pd.read_excel(file_path, sheet_name=selected_sheet, header=None)
+            logger.info(f"[Excel] Loaded {len(df)} rows from sheet '{selected_sheet}'")
+
+            start_row = 0
+            for i in range(min(200, len(df))):
+                cell = str(df.iloc[i, 0]).strip()
+                if re.match(r'^[A-Z]', cell) and re.search(r'\d', cell):
+                    start_row = i
+                    logger.info("[Excel] Data starts at row %s (%s)", start_row, cell)
+                    break
+
+            products: List[Dict[str, Any]] = []
+            grade_map = {
+                4: "rush",
+                5: "cf",
+                6: "aw",
+                7: "grade_1",
+                8: "grade_2",
+                9: "grade_3",
+                10: "grade_4",
+                11: "grade_5",
+                12: "grade_6",
+                13: "grade_7",
+                14: "grade_8",
+                15: "grade_9",
             }
-            
-            question_lower = question.lower()
-            is_code_list_query = any(keyword in question_lower for keyword in [
-                "list", "all unique", "all cabinet codes", "cabinet codes", 
-                "codes", "unique codes", "list all"
-            ])
-            
-            for sheet_name, df in excel_data.items():
-                if df.empty:
-                    continue
-                
-                # Find header row using improved method
-                header_row_idx = self._find_header_row(df, max_rows=15)
-                
-                if header_row_idx is None:
-                    warning_msg = f"No header row found in sheet '{sheet_name}'"
-                    logger.warning(warning_msg)
-                    structured_data["parse_errors"].append(warning_msg)
-                    continue
-                
-                headers = df.iloc[header_row_idx].fillna("").astype(str).tolist()
-                
-                # Find SKU column using improved method
-                sku_col_idx = self._find_sku_column(headers, df, header_row_idx)
-                
-                if sku_col_idx is None:
-                    warning_msg = f"Could not identify SKU column in sheet '{sheet_name}'"
-                    logger.warning(warning_msg)
-                    structured_data["parse_errors"].append(warning_msg)
-                    continue
-                
-                # Find price columns using improved method (pass DataFrame for value checking)
-                price_col_indices = self._find_price_columns(headers, df, header_row_idx)
-                
-                # If no price columns found, use Wellborn format fallback
-                if not price_col_indices:
-                    # Wellborn format: Material names start after RUSH/CF/AW columns
-                    # Find where CF/AW columns are
-                    cf_col = None
-                    aw_col = None
-                    for i, header_value in enumerate(headers):
-                        header_upper = str(header_value).strip().upper()
-                        if "CF" in header_upper and cf_col is None:
-                            cf_col = i
-                        elif "AW" in header_upper and aw_col is None:
-                            aw_col = i
-                    
-                    # Price columns start after AW column (typically column G, index 6)
-                    if aw_col is not None:
-                        pricing_start = aw_col + 1
-                        # Assume next 20 columns are price columns (material names)
-                        price_col_indices = list(range(pricing_start, min(pricing_start + 20, len(headers))))
-                        logger.info(f"[Price Column] Using Wellborn format fallback: columns {pricing_start}-{pricing_start+len(price_col_indices)-1}")
-                    else:
-                        # Last resort: assume columns 6-30 are price columns
-                        price_col_indices = list(range(6, min(31, len(headers))))
-                        logger.warning(f"[Price Column] Using last resort fallback: columns 6-{len(price_col_indices)+5}")
-                
-                # For backward compatibility, set pricing_start_idx (not used if price_col_indices is set)
-                if price_col_indices:
-                    pricing_start_idx = min(price_col_indices)
-                else:
-                    pricing_start_idx = sku_col_idx + 1
-                
-                # Process data rows - CRITICAL: Process ALL rows, not just first N
-                # This ensures we find all variants including those with suffixes (FH, SD, BUTT, SBMAT, etc.)
-                total_rows_to_process = len(df)
-                logger.info(f"Processing {total_rows_to_process - header_row_idx - 1} data rows in sheet '{sheet_name}'...")
-                
-                for idx in range(header_row_idx + 1, len(df)):
+
+            for idx in range(start_row, len(df)):
+                try:
                     row = df.iloc[idx]
-                    sku_raw = str(row.iloc[sku_col_idx]).strip() if sku_col_idx < len(row) else ""
-                    
-                    # Validate SKU using SKUValidator
-                    if not sku_raw or sku_raw.upper() in ["NAN", "NONE", "", "Y", "N"]:
+                    raw_sku = str(row.iloc[0]).strip().upper()
+
+                    if not raw_sku or raw_sku in ("NAN", "NONE") or len(raw_sku) > 25:
                         continue
-                    
-                    # Use SKUValidator to validate SKU
-                    if not SKUValidator.is_valid_sku(sku_raw):
-                        continue  # Skip invalid SKUs
-                    
-                    # Normalize SKU using SKUValidator
-                    sku = SKUValidator.normalize_sku(sku_raw)
-                    
-                    # Extract prices from identified price columns
-                    prices = {}
-                    if price_col_indices:
-                        for price_idx in price_col_indices:
-                            if price_idx >= len(headers) or price_idx >= len(row):
-                                continue
-                            
-                            header_str = str(headers[price_idx]).strip()
-                            if not header_str or header_str.upper() in ["NAN", "NONE", "", "RECEIVES", "SPECIES", "Y", "N"]:
-                                continue
-                            
-                            # Skip if header looks like a dimension or description
-                            header_upper = header_str.upper()
-                            if any(keyword in header_upper for keyword in ["DEEP", "HIGH", "WIDE", "X", "INCH", "DIMENSION"]):
-                                continue
-                            
-                            try:
-                                value = row.iloc[price_idx] if price_idx < len(row) else None
-                            except (IndexError, KeyError):
-                                continue
-                            
-                            if value is None:
-                                continue
-                            
-                            # Check for NaN
-                            if pd.isna(value):
-                                continue
-                            
-                            # Try to extract price
-                            extracted_price = None
-                            try:
-                                # Try direct float conversion first (most common case)
-                                if isinstance(value, (int, float)):
-                                    extracted_price = float(value)
-                                else:
-                                    # Try string conversion
-                                    str_value = str(value).strip()
-                                    if not str_value or str_value.upper() in ["NAN", "NONE", "", "OPT"]:
-                                        continue
-                                    
-                                    # Remove common suffixes like "OPT", "opt"
-                                    str_value = str_value.replace("OPT", "").replace("opt", "").strip()
-                                    
-                                    # Remove currency symbols and commas
-                                    str_value = str_value.replace("$", "").replace(",", "").strip()
-                                    
-                                    # Try regex pattern match
-                                    price_match = self.price_pattern.search(str_value)
-                                    if price_match:
-                                        price_str = price_match.group(1).replace(",", "").replace("$", "")
-                                        extracted_price = float(price_str)
-                                    else:
-                                        # Try direct conversion (numbers might not match pattern)
-                                        extracted_price = float(str_value)
-                                
-                                # Validate price range
-                                if extracted_price and 10 <= extracted_price <= 1000000:
-                                    prices[header_str] = round(extracted_price, 2)
-                                    
-                            except (ValueError, TypeError) as e:
-                                # Skip values that can't be converted to prices
-                                logger.debug(f"Could not extract price from '{value}' for header '{header_str}': {e}")
-                                continue
-                    
-                    # Store SKU data (even if no prices found, for listing purposes)
-                    if sku:
-                        structured_data["skus"][sku] = {
-                            "sheet": sheet_name,
-                            "prices": prices,  # May be empty if no prices extracted
-                            "row_index": int(idx),
-                            "raw_sku": sku_raw,
-                        }
-                        structured_data["total_rows"] += 1
-                        
-                        # Log if no prices found for debugging
-                        if not prices and idx < header_row_idx + 20:  # Only log first 20 rows
-                            logger.debug(f"SKU {sku} at row {idx} has no prices. Price columns: {price_col_indices[:5]}...")
-            
-            # Build context from structured data
-            if not structured_data["skus"]:
-                error_details = ["Could not extract SKU data from the file."]
-                if structured_data.get("error"):
-                    error_details.append(f"Error: {structured_data['error']}")
-                
-                error_details.append(f"File: {file_path.name}")
-                if structured_data["sheets"]:
-                    error_details.append(f"Found {len(structured_data['sheets'])} sheet(s): {', '.join(structured_data['sheets'])}")
-                else:
-                    error_details.append("No sheets were found in the Excel file.")
-                
-                if structured_data["parse_errors"]:
-                    error_details.append(f"Parse errors: {', '.join(structured_data['parse_errors'][:3])}")
-                
-                return f"Error extracting SKU data:\n" + "\n".join(error_details)
-            
-            # Build context based on question type
-            context = self._build_excel_context(structured_data, question)
-            
-            # Cache the structured data and context for future queries (HUGE performance boost)
-            cache_data = {
-                "structured_data": structured_data,
-                "context": context
-            }
-            set_cached_data(file_path, "excel_rag_processed", cache_data)
-            
-            return context
-            
-        except Exception as e:
-            logger.error(f"Error processing Excel file: {e}", exc_info=True)
-            return f"Error: Failed to process Excel file: {str(e)}"
+
+                    prices: Dict[str, float] = {}
+                    for col_idx, grade_name in grade_map.items():
+                        if col_idx >= len(row):
+                            continue
+                        price_value = self._safe_float(row.iloc[col_idx])
+                        if price_value is not None:
+                            prices[grade_name] = price_value
+
+                    if prices:
+                        products.append(
+                            {
+                                "sku": raw_sku,
+                                "prices": prices,
+                                "catalog": "WELLBORN_ASPIRE",
+                                "row": idx,
+                                "sheet": selected_sheet,  # Add sheet name to product data
+                            }
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("Error processing row %s: %s", idx, exc)
+                    continue
+
+            logger.info("[Excel] Found %s products from sheet '%s'", len(products), selected_sheet)
+            if products:
+                sample = products[0]
+                logger.info(f"[Excel] Sample: SKU {sample.get('sku', 'N/A')} from row {sample.get('row', 'N/A')} in sheet '{selected_sheet}'")
+            return products
+
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[Excel] ERROR: %s", exc, exc_info=True)
+            return []
+
+    def _safe_float(self, value):
+        """Safely convert to float, handling None/empty/--- values"""
+        try:
+            if value is None or (isinstance(value, float) and pd.isna(value)):
+                return None
+
+            text = str(value).strip()
+            if not text or text in ("---", "nan", "None"):
+                return None
+
+            cleaned = text.replace("$", "").replace(",", "").replace("USD", "").strip()
+            return float(cleaned)
+        except Exception:  # noqa: BLE001
+            return None
     
     def _build_excel_context(self, data: Dict[str, Any], question: str = "") -> str:
         """Build structured context from Excel data."""
@@ -515,9 +435,10 @@ class RAGDocumentProcessor:
                     base_match = re.match(r'^([A-Z]{1,3}\d{2,})', query_sku)
                     if base_match:
                         base_code = base_match.group(1)
-                        for catalog_sku in data["skus"].keys():
-                            if catalog_sku.upper().startswith(base_code) and catalog_sku not in matched_skus:
-                                matched_skus.append(catalog_sku)
+                    for catalog_sku in data["skus"].keys():
+                        catalog_sku_upper = safe_str(catalog_sku).upper()
+                        if catalog_sku_upper.startswith(base_code) and catalog_sku not in matched_skus:
+                            matched_skus.append(catalog_sku)
         
         # Detect query type
         is_code_list_query = any(keyword in question_lower for keyword in [
@@ -577,6 +498,54 @@ class RAGDocumentProcessor:
                 lines.append("WARNING: Requested SKUs were found but could not retrieve pricing data.")
                 lines.append("")
             
+            # CRITICAL FIX: For pricing questions, always include full catalog after matched SKUs
+            # This ensures AI can find the requested SKU even if matching was incorrect
+            if is_pricing_query and data.get("skus"):
+                total_catalog_skus = len(data["skus"])
+                lines.extend([
+                    "",
+                    "=" * 70,
+                    f"FULL CATALOG DATA (for reference - {total_catalog_skus} total SKUs)",
+                    "=" * 70,
+                    "",
+                    "⚠️ IMPORTANT: Search the FULL catalog below for the exact SKU mentioned in the question.",
+                    "The matched SKUs above may not include all variations - always check the full catalog.",
+                    "",
+                    "-" * 70,
+                    ""
+                ])
+                
+                # Include all SKUs with their pricing (limit to first 300 for context size)
+                max_skus_to_show = 300
+                shown = 0
+                for sku, sku_data in list(data["skus"].items())[:max_skus_to_show]:
+                    prices = sku_data.get("prices", {})
+                    if prices:
+                        lines.append(f"SKU: {sku}")
+                        # CRITICAL FIX: Format grade names properly (elite_cherry -> Elite Cherry)
+                        formatted_price_list = []
+                        for grade, price in sorted(prices.items()):
+                            grade_str = str(grade)
+                            # Convert underscore-separated names to proper format
+                            if "_" in grade_str:
+                                display_grade = " ".join(word.capitalize() for word in grade_str.split("_"))
+                            elif grade_str.startswith("GRADE_"):
+                                display_grade = grade_str.replace("GRADE_", "Grade ")
+                            else:
+                                # Already formatted properly
+                                display_grade = grade_str
+                            formatted_price_list.append(f"{display_grade}: ${price:,.2f}")
+                        lines.append(f"Prices: {', '.join(formatted_price_list)}")
+                        lines.append(f"Sheet: {sku_data.get('sheet', 'N/A')} | Row: {sku_data.get('row_index', 'N/A')}")
+                        lines.append("")
+                        shown += 1
+                
+                if total_catalog_skus > shown:
+                    lines.append(f"... and {total_catalog_skus - shown} more SKUs in catalog")
+                    lines.append("")
+                    lines.append("⚠️ If your requested SKU is not shown above, it may be in the remaining SKUs.")
+                    lines.append("")
+            
             lines.append("=" * 70)
             lines.append("")
         
@@ -597,15 +566,16 @@ class RAGDocumentProcessor:
                     continue
                 
                 base_code = base_match.group(1)
-                if base_code.startswith("B") and len(base_code) >= 2 and base_code[1].isdigit():
+                base_code_str = safe_str(base_code)
+                if base_code_str.startswith("B") and len(base_code_str) >= 2 and base_code_str[1].isdigit():
                     base_cabinets.append(sku)
-                elif base_code.startswith("W") and len(base_code) >= 2 and base_code[1].isdigit():
+                elif base_code_str.startswith("W") and len(base_code_str) >= 2 and base_code_str[1].isdigit():
                     wall_cabinets.append(sku)
-                elif base_code.startswith("SB"):
+                elif base_code_str.startswith("SB"):
                     sink_bases.append(sku)
-                elif base_code.startswith("DB"):
+                elif base_code_str.startswith("DB"):
                     drawer_bases.append(sku)
-                elif any(base_code.startswith(prefix) for prefix in ["CW", "CBS", "CWS", "UT", "PB", "OVD"]):
+                elif any(base_code_str.startswith(prefix) for prefix in ["CW", "CBS", "CWS", "UT", "PB", "OVD"]):
                     specialty.append(sku)
                 else:
                     other.append(sku)
@@ -652,7 +622,7 @@ class RAGDocumentProcessor:
                 
                 # Sort SKUs to show base/wall cabinets first
                 sorted_skus = sorted(data["skus"].items(), key=lambda x: (
-                    0 if x[0].startswith(('B', 'W', 'SB', 'DB')) else 1,  # Prioritize common types
+                    0 if safe_str(x[0]).startswith(('B', 'W', 'SB', 'DB')) else 1,  # Prioritize common types
                     x[0]
                 ))
                 

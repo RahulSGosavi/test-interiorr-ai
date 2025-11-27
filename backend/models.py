@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, JSON
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, JSON, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -57,11 +57,17 @@ class File(Base):
     file_size = Column(Integer)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     folder_id = Column(Integer, ForeignKey("folders.id"), nullable=True)
+    catalog_type = Column(String)
+    structure_type = Column(String)
+    total_products = Column(Integer)
+    confidence_score = Column(Float)
+    processed_data = Column(JSON)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
     
     project = relationship("Project", back_populates="files")
     folder = relationship("Folder", back_populates="files")
     annotations = relationship("Annotation", back_populates="file")
+    chunks = relationship("DocumentChunk", back_populates="file")
 
 class Annotation(Base):
     __tablename__ = "annotations"
@@ -87,4 +93,17 @@ class Message(Base):
     
     user = relationship("User", back_populates="messages")
     project = relationship("Project", back_populates="messages")
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    chunk_index = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    file = relationship("File", back_populates="chunks")
 

@@ -11,6 +11,20 @@ from typing import Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
+def safe_str(value: Any) -> str:
+    """Safely convert values for string operations."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return ""
+        first = value[0]
+        if isinstance(first, str):
+            return first
+        return "" if first is None else str(first)
+    if value is None:
+        return ""
+    return str(value)
 ROOT_DIR = Path(__file__).parent
 
 # Load .env file - try multiple locations
@@ -28,9 +42,10 @@ DEFAULT_SQLITE_URL = f"sqlite:///{DEFAULT_SQLITE_PATH.as_posix()}"
 
 def _build_engine(url: str) -> Engine:
     connect_args: Dict[str, Any] = {}
-    if url.startswith("sqlite"):
+    normalized_url = safe_str(url)
+    if normalized_url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
-    return create_engine(url, pool_pre_ping=True, connect_args=connect_args)
+    return create_engine(normalized_url, pool_pre_ping=True, connect_args=connect_args)
 
 def _verify_connection(engine: Engine) -> None:
     with engine.connect() as connection:
@@ -41,7 +56,7 @@ def _initialise_engine() -> Tuple[str, Engine]:
     fallback_url = (os.environ.get("FALLBACK_DATABASE_URL") or "").strip() or DEFAULT_SQLITE_URL
 
     # For PostgreSQL URLs, convert postgres:// to postgresql://
-    if primary_url.startswith("postgres://"):
+    if safe_str(primary_url).startswith("postgres://"):
         primary_url = primary_url.replace("postgres://", "postgresql://", 1)
 
     if primary_url:

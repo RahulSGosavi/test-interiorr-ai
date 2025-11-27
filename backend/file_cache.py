@@ -15,6 +15,21 @@ import pickle
 
 logger = logging.getLogger(__name__)
 
+def safe_str(value: Any) -> str:
+    """Safely convert any value to string."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return ""
+        first = value[0]
+        if isinstance(first, str):
+            return first
+        return "" if first is None else str(first)
+    if value is None:
+        return ""
+    return str(value)
+
 # In-memory cache for processed files
 _file_cache: Dict[str, Dict[str, Any]] = {}
 _cache_timestamps: Dict[str, float] = {}
@@ -92,7 +107,7 @@ def clear_cache(file_path: Optional[Path] = None) -> None:
     """
     if file_path:
         file_hash = get_file_hash(file_path)
-        keys_to_remove = [k for k in _file_cache.keys() if k.startswith(file_hash)]
+        keys_to_remove = [k for k in _file_cache.keys() if safe_str(k).startswith(file_hash)]
         for key in keys_to_remove:
             _file_cache.pop(key, None)
             _cache_timestamps.pop(key, None)

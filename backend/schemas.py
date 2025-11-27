@@ -53,6 +53,11 @@ class FileResponse(FileBase):
     file_size: Optional[int] = None
     project_id: int
     uploaded_at: datetime
+    catalog_type: Optional[str] = None
+    structure_type: Optional[str] = None
+    total_products: Optional[int] = None
+    confidence_score: Optional[float] = None
+    processed_data: Optional[Any] = None
     
     model_config = {"from_attributes": True}
 

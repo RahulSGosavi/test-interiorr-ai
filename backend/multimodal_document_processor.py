@@ -1,4 +1,100 @@
 """
+Simplified multi-modal processor that leans on deterministic extractors.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from nlp_question_analyzer import QuestionIntent
+from rag_document_processor import RAGDocumentProcessor
+from universal_document_processor import UniversalDocumentProcessor
+
+logger = logging.getLogger(__name__)
+
+
+class MultiModalDocumentProcessor:
+    """Bridges raw catalog files to a retrieval-friendly structure."""
+
+    def __init__(self) -> None:
+        self.universal_processor = UniversalDocumentProcessor()
+        self.rag_processor = RAGDocumentProcessor()
+
+    def process(
+        self,
+        file_path: Path,
+        file_type: str,
+        query_intent: Optional[QuestionIntent] = None,
+    ) -> Dict[str, Any]:
+        logger.info("MultiModalDocumentProcessor ingesting %s", file_path)
+        universal_payload = self.universal_processor.process_file(str(file_path))
+        products = universal_payload.get("products", [])
+        structured_map = self._build_structured_map(products, universal_payload.get("metadata", {}))
+        chunks = self._products_to_chunks(products, universal_payload.get("metadata", {}))
+        raw_context = self.rag_processor.process_file(file_path, file_type, question="")
+
+        metadata = {
+            "file_path": str(file_path),
+            "file_type": file_type,
+            "product_count": len(products),
+            "catalog_type": universal_payload.get("metadata", {}).get("catalog_type"),
+        }
+
+        if query_intent and query_intent.has_pricing:
+            metadata["pricing_focus"] = True
+
+        return {
+            "structured_data": {"skus": structured_map},
+            "chunks": chunks,
+            "raw_context": raw_context,
+            "metadata": metadata,
+        }
+
+    @staticmethod
+    def _build_structured_map(
+        products: List[Dict[str, Any]],
+        metadata: Dict[str, Any],
+    ) -> Dict[str, Dict[str, Any]]:
+        structured: Dict[str, Dict[str, Any]] = {}
+        default_sheet = metadata.get("catalog_type") or metadata.get("structure_type") or "Catalog"
+        for product in products:
+            sku = product.get("sku")
+            if not sku:
+                continue
+            structured[sku] = {
+                "prices": product.get("prices", {}),
+                "catalog": product.get("catalog"),
+                "row": product.get("row"),
+                "sheet": product.get("sheet") or default_sheet,
+            }
+        return structured
+
+    @staticmethod
+    def _products_to_chunks(products: List[Dict[str, Any]], metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+        chunks: List[Dict[str, Any]] = []
+        for product in products:
+            sku = product.get("sku")
+            prices = product.get("prices", {})
+            if not sku or not prices:
+                continue
+            lines = [f"{grade}: {value}" for grade, value in prices.items()]
+            text = f"SKU {sku} pricing\n" + "\n".join(lines)
+            chunks.append(
+                {
+                    "text": text,
+                    "metadata": {
+                        "sku": sku,
+                        "catalog": product.get("catalog"),
+                        "row": product.get("row"),
+                        "source": metadata.get("file_type", "catalog"),
+                    },
+                    "entities": {"skus": [sku], "prices": list(prices.values()), "grades": list(prices.keys())},
+                }
+            )
+        return chunks
+"""
 Multi-Modal Document Processor for Pricing AI
 
 Processes documents using multiple techniques:
@@ -113,8 +209,25 @@ class MultiModalDocumentProcessor:
                 "chunks": []
             }
             
-            # Process each sheet
-            for sheet_name, df in excel_data.items():
+            # CRITICAL FIX: Prioritize sheets with "SKU Pricing" over "Accessory Pricing"
+            # Sort sheets: "SKU Pricing" first, "Accessory" last
+            sheet_items = list(excel_data.items())
+            def sheet_priority(sheet_item):
+                sheet_name = str(sheet_item[0]).lower()
+                if "sku" in sheet_name and "pricing" in sheet_name:
+                    return 0  # Highest priority
+                elif "pricing" in sheet_name and "accessory" not in sheet_name:
+                    return 1  # Second priority
+                elif "accessory" in sheet_name:
+                    return 2  # Lower priority
+                else:
+                    return 3  # Lowest priority
+            
+            sheet_items.sort(key=sheet_priority)
+            logger.info(f"📋 Sheet processing order: {[name for name, _ in sheet_items]}")
+            
+            # Process sheets in priority order (SKU Pricing first)
+            for sheet_name, df in sheet_items:
                 if df.empty:
                     continue
                 

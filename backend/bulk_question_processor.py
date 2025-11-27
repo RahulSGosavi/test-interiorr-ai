@@ -14,6 +14,22 @@ from typing import List, Dict, Any, Tuple
 logger = logging.getLogger(__name__)
 
 
+def safe_str(value: Any) -> str:
+    """Safely convert values for startswith operations."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return ""
+        first = value[0]
+        if isinstance(first, str):
+            return first
+        return "" if first is None else str(first)
+    if value is None:
+        return ""
+    return str(value)
+
+
 def split_bulk_questions(question_text: str) -> List[str]:
     """
     Split bulk questions into individual questions.
@@ -29,10 +45,10 @@ def split_bulk_questions(question_text: str) -> List[str]:
     Returns:
         List of individual question strings
     """
-    if not question_text or not question_text.strip():
+    if not question_text or not safe_str(question_text).strip():
         return []
     
-    question_text = question_text.strip()
+    question_text = safe_str(question_text).strip()
     
     # Strategy 1: Split by newlines (Shift+Enter creates separate questions)
     lines = question_text.split('\n')
@@ -42,7 +58,7 @@ def split_bulk_questions(question_text: str) -> List[str]:
     current_question = []
     
     for line in lines:
-        line = line.strip()
+        line = safe_str(line).strip()
         if not line:
             # Empty line - end current question if we have one
             if current_question:
@@ -65,7 +81,7 @@ def split_bulk_questions(question_text: str) -> List[str]:
                 'what', 'where', 'when', 'who', 'why', 'how', 'which', 'show', 'give', 
                 'list', 'tell', 'find', 'calculate', 'compare'
             ]
-            line_lower = line.lower()
+            line_lower = safe_str(line).lower()
             starts_with_question = any(line_lower.startswith(starter) for starter in question_starters)
             
             # If current question exists and this starts a new question, save current
@@ -135,11 +151,12 @@ def split_bulk_questions(question_text: str) -> List[str]:
     # Clean up questions (remove extra spaces, ensure they end with ?)
     cleaned_questions = []
     for q in questions:
-        q = re.sub(r'\s+', ' ', q.strip())  # Normalize whitespace
+        q = re.sub(r'\s+', ' ', safe_str(q).strip())  # Normalize whitespace
         if q and not q.endswith('?') and not q.endswith('.') and not q.endswith('!'):
             # Add ? if it looks like a question but doesn't end with punctuation
             question_words = ['what', 'where', 'when', 'who', 'why', 'how', 'which', 'show', 'give', 'list', 'tell']
-            if any(q.lower().startswith(word) for word in question_words):
+            q_lower = safe_str(q).lower()
+            if any(q_lower.startswith(word) for word in question_words):
                 q += '?'
         if q:
             cleaned_questions.append(q)
@@ -158,17 +175,18 @@ def is_bulk_question(question_text: str) -> bool:
     Returns:
         True if contains multiple questions, False otherwise
     """
-    if not question_text:
+    normalized_question = safe_str(question_text)
+    if not normalized_question:
         return False
     
     # Check for newlines (Shift+Enter)
-    if '\n' in question_text.strip():
-        lines = [line.strip() for line in question_text.strip().split('\n') if line.strip()]
+    if '\n' in normalized_question.strip():
+        lines = [line.strip() for line in normalized_question.strip().split('\n') if line.strip()]
         if len(lines) > 1:
             return True
     
     # Check for multiple question marks
-    if question_text.count('?') > 1:
+    if normalized_question.count('?') > 1:
         return True
     
     # Check for question starters in middle of text
@@ -176,7 +194,7 @@ def is_bulk_question(question_text: str) -> bool:
         ' what ', ' where ', ' when ', ' who ', ' why ', ' how ', ' which ',
         ' show ', ' give ', ' list ', ' tell ', ' find ', ' calculate ', ' compare '
     ]
-    question_lower = f' {question_text.lower()} '
+    question_lower = f' {normalized_question.lower()} '
     matches = sum(1 for starter in question_starters if starter in question_lower)
     
     # If we find multiple question starters, it's likely bulk

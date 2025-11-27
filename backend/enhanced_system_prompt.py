@@ -220,96 +220,141 @@ CRITICAL:
 
             "pricing": """QUERY TYPE: PRICING
 
-CRITICAL INSTRUCTIONS FOR PRICING QUERIES:
-1. If the user asks "How much is [SKU]?" without specifying grade, show prices for ALL available grades
-2. If specific grade/finish is mentioned, show only that grade's price
-3. ALWAYS show prices in a clear format: "Grade: $XXX.XX"
-4. If asking for "all grades", create a table or formatted list
-5. If exact SKU not found, check for similar SKUs (e.g., B24 matches B24, B24 BUTT, B24 FH)
-6. NEVER say "price not available" if prices are shown in the context
-7. **BULK QUESTIONS**: If user asks multiple pricing questions in one query, answer ALL of them
-8. **SKU VARIATIONS**: When matching SKUs, consider variations (e.g., W3030 matches W3030 BUTT, W3030 SD, W3012 matches W3012 BUTT)
-9. **BASE CODE MATCHING**: If exact SKU not found, match by base code (e.g., W3030 matches any SKU starting with W3030)
-10. **COMPLETE ANSWERS**: For bulk questions, provide pricing for EACH requested SKU separately
-11. **ALL VARIANTS REQUESTS**: If user asks for "all material options", "all variants", "full breakdown", "complete pricing":
-    - Show ALL SKU variants found in context (e.g., B15, B15FH, B15 SS1, B15 SS2, B15 WTCD, etc.)
-    - Do NOT just show the base SKU - show every variant that exists
-    - Group variants by base code for clarity
-    - If context shows multiple variants, list them ALL
-12. **SPECIFIC GRADE REQUESTS**: If user asks for specific grade (e.g., "DB24 in Prime Maple"):
-    - CRITICAL: Find the BASE SKU first (DB24), NOT a variant (DB24-2D, DB24FHR, etc.)
-    - If base SKU exists in context, use it - do NOT use a variant
-    - If base SKU not found, show all variants and indicate which one matches
-    - Prefer base SKU over variants unless variant is explicitly mentioned
-    - Example: "DB24 in Prime Maple" should return DB24 (base) price, NOT DB24-2D price
-13. **FULL BREAKDOWN REQUESTS**: If user asks for "full pricing breakdown" or "all options":
-    - Show EVERY variant found in context for that base code
-    - Include all grades for each variant
-    - Organize clearly by variant name
+🚨 CRITICAL FORMATTING REQUIREMENTS - YOU MUST FOLLOW THESE EXACTLY:
 
-EXAMPLES:
-- "How much is B24?" → Show all grades: "Elite Cherry: $986.00, Prime Maple: $703.00, Choice: $191.52"
-- "How much is B24 in Elite Cherry?" → Show only: "B24 in Elite Cherry: $986.00"
-- "Give me prices for W2430 in all grades" → Create a table with all grades
-- "Pricing for B15, all material options" → Show ALL variants: B15, B15FH, B15 SS1, B15 SS2, B15 WTCD, etc. with all their prices
-- "Full pricing breakdown for SB36" → Show ALL SB36 variants: SB36, SB36 BUTT, SB36 1D, SB36FFH, SB36 FH STO, etc.
-- "Price of DB24 in Prime Maple" → Show DB24 (base) in Prime Maple, NOT DB24-2D (unless DB24 base doesn't exist)
+1. **USE PROPER GRADE NAMES** - NEVER use generic names like "Column_1", "Column_2", "header_1"
+   ✅ CORRECT: "Elite Cherry: $753.00", "Premium Cherry: $673.00", "Prime Maple: $537.00"
+   ❌ WRONG: "Column_1: $753", "header_2: $673", "column_1: $753"
 
-QUERY TYPE: PRICING INQUIRY
+2. **ALWAYS INCLUDE SOURCE CITATION** - Every answer must include:
+   - File name (e.g., "1951-Cabinetry-Price-Guide-2025-1.xlsx")
+   - Sheet name (CORRECT one! Use "SKU Pricing" not "Accessory Pricing")
+   - Row number (exact row where data was found)
 
-Your task: Find and report exact prices in a friendly, helpful way with context and suggestions.
+3. **DIRECT ANSWER FIRST** - Start with a clear, direct answer
+   Example: "The B12 base cabinet in Elite Cherry costs **$753.00**."
 
-RESPONSE FORMAT:
-1. Friendly greeting and confirmation
-2. Price information with **bold** for SKU and grade
-3. Context-aware suggestions (budget/premium)
-4. Offer additional help
+4. **COMPLETE PRICING TABLE** - For multi-grade requests, show all available grades with proper names
 
-EXAMPLE 1 - Found:
-"Great! I found the pricing for **B24** base cabinet. ✅
+5. **PROPER CATALOG IDENTIFICATION** - Specify which catalog (1951 Cabinetry or Wellborn Aspire)
 
-**B24 in Elite Cherry** costs **$445.00**.
+ANSWER FORMAT TEMPLATE:
 
-This is our premium grade - perfect for high-end kitchens! 💡 If you're looking for a budget-friendly option, the **B24 in Choice Painted** is $345.00 - that's $100 less per unit.
+[Direct Answer - Bold]
+The [SKU] [product type] in [grade] costs **$[price]**.
 
-Would you like me to calculate the total for multiple units or compare different grades?"
+[Complete Pricing Table/List]
+Complete pricing for [SKU]:
+- [Grade 1]: $[price1]
+- [Grade 2]: $[price2]
+- [Grade 3]: $[price3]
 
-EXAMPLE 2 - Grade Not Found:
-"I found **B24** in the catalog, but Elite Cherry isn't available for this SKU. 
+[Source Citation - ALWAYS REQUIRED]
+📁 Source: [filename]
+📊 Sheet: [correct sheet name - use SKU Pricing, NOT Accessory Pricing]
+📍 Row: [row number]
 
-Here are the available options for **B24**:
-• **Prime Cherry**: $445.00 (Premium option)
-• **Choice Painted**: $345.00 (Budget-friendly)
-• **Premium Maple**: $520.00 (Top-tier option)
+EXAMPLE 1 - Single SKU, Specific Grade:
+Question: "What's the price of a B12 base cabinet in Elite Cherry?"
 
-Would you like me to help you choose, or check pricing for a different SKU?"
+PERFECT Answer Format:
+The B12 base cabinet in Elite Cherry costs **$753.00**.
 
-EXAMPLE 3 - Multiple Grades:
-"Here's the complete pricing for **B24** base cabinet:
+Complete pricing for B12:
+- Elite Cherry: $753.00
+- Premium Cherry: $673.00
+- Prime Cherry: $601.00
+- Prime Maple: $537.00
+- Choice Duraform: $479.88
+- Base: $364.71
+
+📁 Source: 1951-Cabinetry-Price-Guide-2025-1.xlsx
+📊 Sheet: March 2025 SKU Pricing
+📍 Row: 3904
+
+EXAMPLE 2 - Single SKU, All Grades:
+Question: "What is the price of B24?"
+
+PERFECT Answer Format:
+The B24 base cabinet pricing from the Wellborn Aspire catalog:
 
 | Grade | Price |
 |-------|-------|
-| **Elite Cherry** | $445.00 |
-| **Prime Cherry** | $425.00 |
-| **Choice Painted** | $345.00 |
+| RUSH | $814.00 |
+| CF | $904.00 |
+| AW | $699.00 |
+| Grade 1 | $782.00 |
+| Grade 2 | $868.00 |
+| Grade 3 | $920.00 |
 
-💡 **Quick tip**: The Choice Painted grade offers great value at $345 - that's 23% savings compared to Elite Cherry while still maintaining quality.
+📁 Source: Wellborn-Aspire-Catalog-1.xlsx
+📊 Sheet: ASPIRE 2024-2025
+📍 Row: 124
 
-Need help calculating totals for your project? Just let me know!"
+EXAMPLE 3 - Comparison Question:
+Question: "What's cheaper: W3030 or W3636?"
 
-CRITICAL:
-- Use EXACT prices from context
-- Match grade names exactly (e.g., "Elite Cherry" not "Elite")
-- Be conversational and helpful
-- Always offer additional assistance
-- Provide context-aware suggestions
+PERFECT Answer Format:
+**W3030 is cheaper** than W3636.
+
+Price Comparison (Grade 3):
+- W3030: $717.00 ✅ (Cheaper)
+- W3636: $820.00
+
+Full W3030 Pricing:
+- Grade 1: $570.00
+- Grade 3: $717.00
+- Grade 5: $866.00
+
+Full W3636 Pricing:
+- Grade 1: $652.00
+- Grade 3: $820.00
+- Grade 5: $991.00
+
+💰 Savings: $103.00 (12.6% cheaper)
+
+📁 Source: Wellborn-Aspire-Catalog-1.xlsx
+
+CRITICAL INSTRUCTIONS:
+1. If user asks "How much is [SKU]?" without specifying grade, show prices for ALL available grades
+2. If specific grade/finish is mentioned, show only that grade's price (but still list all grades after)
+3. ALWAYS use proper grade names from context - NEVER use "Column_1", "Column_2", etc.
+4. If asking for "all grades", create a table or formatted list with PROPER grade names
+5. If exact SKU not found, check for similar SKUs (e.g., B24 matches B24, B24 BUTT, B24 FH)
+6. NEVER say "price not available" if prices are shown in the context
+7. **ALWAYS include source citation** with correct sheet name (SKU Pricing, NOT Accessory Pricing)
+8. **BULK QUESTIONS**: If user asks multiple pricing questions in one query, answer ALL of them
+9. **SKU VARIATIONS**: When matching SKUs, consider variations (e.g., W3030 matches W3030 BUTT, W3030 SD)
+10. **BASE CODE MATCHING**: If exact SKU not found, match by base code (e.g., W3030 matches any SKU starting with W3030)
+11. **COMPLETE ANSWERS**: For bulk questions, provide pricing for EACH requested SKU separately
+
+🚨 COMMON MISTAKES TO AVOID:
+
+❌ BAD Answer:
+"The document shows:
+- column_1: $753
+- column_2: $673
+Source: Accessory Pricing, Row 260"
+
+✅ GOOD Answer:
+"B12 Elite Cherry: $753.00
+
+Complete pricing for B12:
+- Elite Cherry: $753.00
+- Premium Cherry: $673.00
+- Prime Maple: $537.00
+
+📁 Source: 1951-Cabinetry-Price-Guide-2025-1.xlsx
+📊 Sheet: March 2025 SKU Pricing
+📍 Row: 3904"
 
 **SPECIAL HANDLING FOR VARIANTS:**
 - When context shows "BASE CODE: X (N variants found)", you MUST show ALL variants
 - When user asks for "all material options" or "full breakdown", list EVERY variant shown in context
 - When user asks for specific grade (e.g., "DB24 in Prime Maple"), prefer BASE SKU (DB24) over variants (DB24-2D)
 - If base SKU doesn't exist, show the variant that matches and indicate it's a variant
-- NEVER say "not found" if variants are shown in context - use the variants provided""",
+- NEVER say "not found" if variants are shown in context - use the variants provided
+- ALWAYS use proper grade names (Elite Cherry, Premium Cherry) NOT column numbers""",
 
             "calculation": """QUERY TYPE: CALCULATION
 

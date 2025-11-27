@@ -4,9 +4,9 @@ import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
 import { filesAPI, annotationsAPI } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Home, Menu } from "lucide-react";
+import { Home, Menu, FileText } from "lucide-react";
 import AnnotationToolbar from "@/components/AnnotationToolbar";
+import PropertiesPanel from "@/components/PropertiesPanel";
 import CadCanvasEditor from "@/components/CadCanvasEditor";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import api from "@/lib/api";
@@ -38,6 +38,42 @@ const mapDashArray = (dash, scale) => {
   if (!dash || !dash.length) return undefined;
   return dash.map((segment) => Math.max(segment * scale, 0.1));
 };
+
+const createLayerId = () =>
+  (crypto?.randomUUID ? crypto.randomUUID() : `layer-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`);
+
+const createDefaultLayerState = () => {
+  const id = createLayerId();
+  return {
+    activeLayerId: id,
+    items: [{ id, name: "Layer 1", visible: true }],
+  };
+};
+
+const normalizeLayerState = (state) => {
+  if (!state?.items?.length) {
+    return createDefaultLayerState();
+  }
+  const sanitizedItems = state.items.map((layer, index) => ({
+    id: layer.id || createLayerId(),
+    name: layer.name || `Layer ${index + 1}`,
+    visible: layer.visible !== false,
+  }));
+  const fallback = sanitizedItems.find((layer) => layer.visible) ?? sanitizedItems[0];
+  const activeLayerId = sanitizedItems.some((layer) => layer.id === state.activeLayerId && layer.visible !== false)
+    ? state.activeLayerId
+    : fallback.id;
+  return {
+    activeLayerId,
+    items: sanitizedItems,
+  };
+};
+
+const createEmptyPageState = () => ({
+  shapes: [],
+  stagePosition: { x: 0, y: 0 },
+  layers: createDefaultLayerState(),
+});
 
 // Helper function to check if a file is an image
 const checkIfImageFile = (fileName, fileType) => {
@@ -122,11 +158,15 @@ const AnnotationPage = () => {
   const [measurementUnit, setMeasurementUnit] = useState("cm");
   const [unitsPerPixel, setUnitsPerPixel] = useState(0.1);
   const [pageMetrics, setPageMetrics] = useState({});
+  const [pageRotationOverrides, setPageRotationOverrides] = useState({});
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
 
   const [canvasStatus, setCanvasStatus] = useState({
     loading: true,
     message: "Preparing workspace...",
   });
+  const defaultPageStateRef = useRef(createEmptyPageState());
+  const autoSaveTimerRef = useRef(null);
 
   const handleCanvasLoadingChange = useCallback((loading, message) => {
     setCanvasStatus({
@@ -147,9 +187,39 @@ const AnnotationPage = () => {
   const controlsDisabled = canvasStatus.loading || isDownloading || !pageImage;
 
   const currentPageState = pageStates[currentPage];
+  const safePageState = currentPageState ?? defaultPageStateRef.current;
+  const currentLayerState = safePageState?.layers || defaultPageStateRef.current.layers;
+  const hiddenLayerIds = currentLayerState.items.filter((layer) => !layer.visible).map((layer) => layer.id);
+  const manualRotation = pageRotationOverrides[currentPage] || 0;
 
   useEffect(() => {
     currentPageRef.current = currentPage;
+  }, [currentPage]);
+
+  useEffect(() => {
+    setPageRotationOverrides({});
+  }, [fileId]);
+
+  useEffect(() => {
+    setPageStates((prev) => {
+      const existing = prev[currentPage];
+      if (existing) {
+        if (existing.layers?.items?.length) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [currentPage]: {
+            ...existing,
+            layers: normalizeLayerState(existing.layers),
+          },
+        };
+      }
+      return {
+        ...prev,
+        [currentPage]: createEmptyPageState(),
+      };
+    });
   }, [currentPage]);
 
   const loadAnnotations = useCallback(async () => {
@@ -163,6 +233,7 @@ const AnnotationPage = () => {
             {
               shapes: state?.shapes || state?.objects || [],
               stagePosition: state?.stagePosition || state?.stage || { x: 0, y: 0 },
+              layers: normalizeLayerState(state?.layers),
             },
           ])
         );
@@ -179,11 +250,11 @@ const AnnotationPage = () => {
     try {
       const page = await doc.getPage(pageNumber);
       
-      // Get page rotation from metadata (common in CAD-generated PDFs)
-      const rotation = page.rotate || 0;
+      // Get page rotation from metadata (common in CAD-generated PDFs) and user overrides
+      const manualRotation = pageRotationOverrides[pageNumber] || 0;
+      const rotation = ((page.rotate || 0) + manualRotation) % 360;
       
       // Get viewport with rotation accounted for
-      // CRITICAL: Ensure we get the full viewport dimensions including rotation
       const viewport = page.getViewport({ scale: 1.5, rotation });
       
       // Get actual page dimensions (before rotation) for reference
@@ -191,26 +262,22 @@ const AnnotationPage = () => {
       const actualPageWidth = viewportNoRotation.width;
       const actualPageHeight = viewportNoRotation.height;
       
-      // Ensure canvas dimensions match viewport exactly (no rounding issues)
+      // Ensure canvas dimensions match viewport exactly
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d", { willReadFrequently: true });
-      // Use Math.ceil to ensure we capture the full page, especially for landscape/wide pages
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
       
       // Render the full page to canvas
       await page.render({ canvasContext: context, viewport }).promise;
       
-      // Verify canvas was fully rendered by checking if image data exists
+      // Verify canvas was fully rendered
       const imageData = canvas.toDataURL();
       if (!imageData || imageData === 'data:,') {
         throw new Error('Failed to render PDF page to canvas');
       }
       
       setPageImage(imageData);
-      // Set dimensions exactly as rendered (use actual canvas dimensions)
-      // CRITICAL: Use actual canvas dimensions to ensure full page is captured
-      // This prevents rounding issues that can cause right side to be cut off
       const renderedWidth = canvas.width;
       const renderedHeight = canvas.height;
       
@@ -232,7 +299,7 @@ const AnnotationPage = () => {
       console.error("Failed to render page", error);
       setCanvasStatus({ loading: false, message: "Failed to render page" });
     }
-  }, []);
+  }, [pageRotationOverrides]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -271,7 +338,6 @@ const AnnotationPage = () => {
         console.error("Failed to load PDF:", error);
         setCanvasStatus({ loading: false, message: null });
         
-        // Better error messages based on error type
         if (error?.response?.status === 404) {
           toast.error("File not found. Please upload the file again.");
         } else if (error?.response?.status === 401) {
@@ -295,21 +361,36 @@ const AnnotationPage = () => {
   const persistCurrentPage = useCallback(() => {
     const snapshot = canvasRef.current?.exportState?.();
     if (snapshot) {
+      const layers = pageStates[currentPageRef.current]?.layers || createDefaultLayerState();
+      const enrichedSnapshot = {
+        ...snapshot,
+        layers,
+      };
       setPageStates((prev) => ({
         ...prev,
-        [currentPageRef.current]: snapshot,
+        [currentPageRef.current]: enrichedSnapshot,
       }));
-      return snapshot;
+      return enrichedSnapshot;
     }
     return pageStates[currentPageRef.current];
   }, [pageStates]);
 
   const handlePageStateChange = useCallback((snapshot) => {
     if (!snapshot) return;
-    setPageStates((prev) => ({
-      ...prev,
-      [currentPageRef.current]: snapshot,
-    }));
+    setPageStates((prev) => {
+      const existing = prev[currentPageRef.current] ?? createEmptyPageState();
+      const layers = snapshot.layers
+        ? normalizeLayerState(snapshot.layers)
+        : existing.layers || createDefaultLayerState();
+      return {
+        ...prev,
+        [currentPageRef.current]: {
+          ...existing,
+          ...snapshot,
+          layers,
+        },
+      };
+    });
     setIsSaved(false);
   }, []);
 
@@ -357,6 +438,78 @@ const AnnotationPage = () => {
       setIsSaved(false);
     }
   }, [notifyIfBusy]);
+
+  const updateLayerState = useCallback(
+    (page, updater) => {
+      setPageStates((prev) => {
+        const existing = prev[page] ?? createEmptyPageState();
+        const nextLayers = normalizeLayerState(updater(existing.layers ?? createDefaultLayerState()));
+        return {
+          ...prev,
+          [page]: {
+            ...existing,
+            layers: nextLayers,
+          },
+        };
+      });
+      setIsSaved(false);
+    },
+    []
+  );
+
+  const handleAddLayer = useCallback(() => {
+    updateLayerState(currentPage, (current) => {
+      const nextIndex = current.items.length + 1;
+      const newLayer = { id: createLayerId(), name: `Layer ${nextIndex}`, visible: true };
+      return {
+        activeLayerId: newLayer.id,
+        items: [...current.items, newLayer],
+      };
+    });
+  }, [currentPage, updateLayerState]);
+
+  const handleSelectLayer = useCallback(
+    (layerId) => {
+      updateLayerState(currentPage, (current) => {
+        if (current.activeLayerId === layerId) return current;
+        const items = current.items.map((layer) =>
+          layer.id === layerId ? { ...layer, visible: true } : layer
+        );
+        return {
+          activeLayerId: layerId,
+          items,
+        };
+      });
+    },
+    [currentPage, updateLayerState]
+  );
+
+  const handleToggleLayerVisibility = useCallback(
+    (layerId) => {
+      updateLayerState(currentPage, (current) => {
+        const target = current.items.find((layer) => layer.id === layerId);
+        if (!target) return current;
+        const visibleCount = current.items.filter((layer) => layer.visible).length;
+        if (visibleCount === 1 && target.visible) {
+          return current;
+        }
+        const items = current.items.map((layer) =>
+          layer.id === layerId ? { ...layer, visible: !layer.visible } : layer
+        );
+        const updatedTarget = items.find((layer) => layer.id === layerId);
+        let activeLayerId = current.activeLayerId;
+        if (!updatedTarget?.visible) {
+          const fallbackLayer = items.find((layer) => layer.visible) ?? updatedTarget;
+          activeLayerId = fallbackLayer?.id || current.activeLayerId;
+        }
+        return {
+          activeLayerId,
+          items,
+        };
+      });
+    },
+    [currentPage, updateLayerState]
+  );
 
   const handleDeleteSelection = useCallback(() => {
     if (notifyIfBusy()) return;
@@ -481,6 +634,30 @@ const AnnotationPage = () => {
     }
   }, [fileId, notifyIfBusy, pageStates, persistCurrentPage]);
 
+  useEffect(() => {
+    if (isSaved) {
+      setIsAutoSaving(false);
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      return;
+    }
+    setIsAutoSaving(true);
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    autoSaveTimerRef.current = setTimeout(() => {
+      handleSave();
+    }, 5000);
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [handleSave, isSaved]);
+
   const handleDownload = useCallback(async () => {
     if (isDownloading || notifyIfBusy()) return;
     try {
@@ -510,46 +687,37 @@ const AnnotationPage = () => {
       const numPages = pdfJsDoc.numPages;
       const projectName = file?.name?.replace?.(/\.[^/.]+$/, "") || "annotated";
       
-      // Use EXACT same scale as renderPdfPage to ensure annotations match perfectly
       const RENDER_SCALE = 1.5;
       
       // Process each page
       for (let pageNum = 1; pageNum <= numPages; pageNum++) {
         toast.info(`Processing page ${pageNum}/${numPages}...`);
         
-        // Get PDF page with its rotation
         const pdfJsPage = await pdfJsDoc.getPage(pageNum);
-        const rotation = pdfJsPage.rotate || 0;
+        const manualRotationForPage = pageRotationOverrides[pageNum] || 0;
+        const rotation = ((pdfJsPage.rotate || 0) + manualRotationForPage) % 360;
         
-        // Get viewport at render scale (matches display exactly)
         const viewport = pdfJsPage.getViewport({ scale: RENDER_SCALE, rotation });
-        
-        // Get unrotated viewport for PDF page dimensions
         const unrotatedViewport = pdfJsPage.getViewport({ scale: 1.0, rotation: 0 });
         
-        // Create canvas for PDF page - use Math.ceil to ensure full page captured
         const pdfCanvas = document.createElement("canvas");
         const pdfContext = pdfCanvas.getContext("2d", { willReadFrequently: true });
         pdfCanvas.width = Math.ceil(viewport.width);
         pdfCanvas.height = Math.ceil(viewport.height);
         
-        // Render PDF page to canvas
         await pdfJsPage.render({ canvasContext: pdfContext, viewport }).promise;
         
-        // Get annotations for this page
         const snapshot = exportStates[pageNum];
         const shapes = snapshot?.shapes || [];
         
-        // Create composite canvas (same size as PDF canvas)
         const compositeCanvas = document.createElement("canvas");
         const compositeContext = compositeCanvas.getContext("2d", { willReadFrequently: true });
         compositeCanvas.width = pdfCanvas.width;
         compositeCanvas.height = pdfCanvas.height;
         
-        // Draw PDF background first
         compositeContext.drawImage(pdfCanvas, 0, 0, pdfCanvas.width, pdfCanvas.height);
         
-        // Draw all annotations on top (using exact same coordinates as display)
+        // Draw all annotations
         for (const shape of shapes) {
           if (!shape || !shape.type) continue;
           
@@ -558,14 +726,12 @@ const AnnotationPage = () => {
           compositeContext.fillStyle = shape.stroke || "#1d4ed8";
           compositeContext.lineWidth = shape.strokeWidth || 2;
           
-          // Set line dash pattern
           if (shape.dash && shape.dash.length === 2) {
             compositeContext.setLineDash([shape.dash[0], shape.dash[1]]);
           } else {
             compositeContext.setLineDash([]);
           }
           
-          // Draw based on shape type
           switch (shape.type) {
             case "rect": {
               compositeContext.strokeRect(
@@ -601,7 +767,6 @@ const AnnotationPage = () => {
                 }
                 compositeContext.stroke();
                 
-                // Draw arrowhead for arrows
                 if (shape.type === "arrow" && shape.points.length >= 4) {
                   const startX = shape.points[shape.points.length - 4];
                   const startY = shape.points[shape.points.length - 3];
@@ -656,7 +821,6 @@ const AnnotationPage = () => {
                 compositeContext.lineTo(shape.end.x, shape.end.y);
                 compositeContext.stroke();
                 
-                // Draw handles
                 compositeContext.beginPath();
                 compositeContext.arc(shape.start.x, shape.start.y, 4, 0, Math.PI * 2);
                 compositeContext.fill();
@@ -664,7 +828,6 @@ const AnnotationPage = () => {
                 compositeContext.arc(shape.end.x, shape.end.y, 4, 0, Math.PI * 2);
                 compositeContext.fill();
                 
-                // Draw label
                 if (shape.label && shape.midpoint) {
                   compositeContext.font = "12px Arial";
                   compositeContext.textAlign = "center";
@@ -687,7 +850,6 @@ const AnnotationPage = () => {
                 compositeContext.lineTo(shape.pointB.x, shape.pointB.y);
                 compositeContext.stroke();
                 
-                // Draw arc
                 if (shape.radius && shape.startDeg !== undefined && shape.sweep !== undefined) {
                   const startAngle = (shape.startDeg || 0) * (Math.PI / 180);
                   const sweepAngle = (shape.sweep || 0) * (Math.PI / 180);
@@ -702,7 +864,6 @@ const AnnotationPage = () => {
                   compositeContext.stroke();
                 }
                 
-                // Draw label
                 if (shape.label && shape.labelPosition) {
                   compositeContext.font = "12px Arial";
                   compositeContext.textAlign = "center";
@@ -721,49 +882,24 @@ const AnnotationPage = () => {
           compositeContext.restore();
         }
         
-        // Convert composite canvas to image
         const imageDataUrl = compositeCanvas.toDataURL("image/png", 1.0);
         const imageBytes = await fetch(imageDataUrl).then(res => res.arrayBuffer());
         
-        // Embed image into PDF
         const pdfImage = await pdfLibDoc.embedPng(imageBytes);
         
-        // Get unrotated page dimensions (original PDF page size in points)
         const pageWidth = unrotatedViewport.width;
         const pageHeight = unrotatedViewport.height;
         
-        // Create PDF page with original dimensions (always unrotated)
         const page = pdfLibDoc.addPage([pageWidth, pageHeight]);
         
-        // CRITICAL FIX: Use simple approach - always use unrotated page dimensions
-        // pdf-lib automatically scales images to fit the specified dimensions
-        // This prevents cut-off issues with rotated pages
-        
-        // Get embedded image dimensions for debugging
-        const embeddedImageWidth = pdfImage.width;
-        const embeddedImageHeight = pdfImage.height;
-        
-        // Debug logging to verify dimensions
-        console.log(`Page ${pageNum} - Image embedding:`, {
-          rotation,
-          embeddedImage: { width: embeddedImageWidth, height: embeddedImageHeight },
-          pageDimensions: { width: pageWidth, height: pageHeight },
-          canvasDimensions: { width: compositeCanvas.width, height: compositeCanvas.height },
-          viewportDimensions: { width: viewport.width, height: viewport.height },
-        });
-        
-        // Always use unrotated page dimensions
-        // pdf-lib will automatically scale the image to fit these dimensions
-        // This works for all rotation types (0°, 90°, 180°, 270°)
         page.drawImage(pdfImage, {
           x: 0,
           y: 0,
-          width: pageWidth,  // Always use unrotated page width
-          height: pageHeight, // Always use unrotated page height
+          width: pageWidth,
+          height: pageHeight,
         });
       }
 
-      // Save and download PDF
       const pdfBytes = await pdfLibDoc.save();
       const blob = new Blob([pdfBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
@@ -792,6 +928,7 @@ const AnnotationPage = () => {
     pageImage,
     pageMetrics,
     pageStates,
+    pageRotationOverrides,
   ]);
 
   const handleZoomIn = useCallback(() => {
@@ -822,210 +959,156 @@ const AnnotationPage = () => {
 
   const handlePrevPage = () => handlePageChange(Math.max(1, currentPage - 1));
   const handleNextPage = () => handlePageChange(Math.min(numPages, currentPage + 1));
+  const handleRotatePage = useCallback(() => {
+    setPageRotationOverrides((prev) => {
+      const existing = prev[currentPage] || 0;
+      const nextValue = (existing + 90) % 360;
+      return {
+        ...prev,
+        [currentPage]: nextValue,
+      };
+    });
+  }, [currentPage]);
 
-  const snapshot = pageStates[currentPage];
-  const totalElements = snapshot?.shapes?.length ?? snapshot?.objects?.length ?? 0;
+  const totalElements = safePageState?.shapes?.length ?? safePageState?.objects?.length ?? 0;
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 fixed inset-0 safe-area-inset">
-      <header className="h-11 sm:h-11 flex items-center justify-between px-2 sm:px-3 border-b border-slate-900/80 bg-slate-950/70 backdrop-blur flex-shrink-0 safe-area-header">
-        <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/")}
-            data-testid="home-button"
-            className="text-slate-200 hover:bg-slate-800 h-7 sm:h-8 px-1.5 sm:px-2 text-xs"
-            title="Go to Home"
-          >
-            <Home className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-            <span className="hidden md:inline ml-1">Home</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/file/${fileId}`)}
-            data-testid="menu-button"
-            className="text-slate-200 hover:bg-slate-800 h-7 sm:h-8 px-1.5 sm:px-2 text-xs"
-            title="Go to File Menu"
-          >
-            <Menu className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-            <span className="hidden md:inline ml-1">Menu</span>
-          </Button>
-          <div className="h-4 w-px bg-slate-800 hidden sm:block" />
-          <div className="min-w-0">
-            <h1 className="text-[10px] sm:text-xs font-semibold truncate">CAD Annotation</h1>
-            <p className="text-[8px] sm:text-[9px] text-slate-400 truncate hidden lg:block max-w-[120px] sm:max-w-xs">{file?.name}</p>
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#12141a] text-slate-100 fixed inset-0">
+      {/* Top Header Bar - AutoCAD 2020 Style */}
+      <header className="h-10 flex items-center justify-between px-3 border-b border-[#2a2e38] bg-[#1a1d24] flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="text-slate-400 hover:text-white hover:bg-[#2a2e38] h-7 px-2 text-xs"
+            >
+              <Home className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/file/${fileId}`)}
+              className="text-slate-400 hover:text-white hover:bg-[#2a2e38] h-7 px-2 text-xs"
+            >
+              <Menu className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+          <div className="h-4 w-px bg-[#2a2e38]" />
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-[#00aaff]" />
+            <div>
+              <h1 className="text-xs font-semibold text-white leading-none">CAD Annotation</h1>
+              <p className="text-[10px] text-slate-500 truncate max-w-[200px]">{file?.name}</p>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-1 text-[9px] sm:text-[10px] flex-shrink-0">
-          <div className="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-900/60 border border-slate-800">
-            <span className="text-slate-400 text-[8px] sm:text-[9px]">Active</span>
-            <span className="font-semibold text-slate-100 capitalize text-[9px] sm:text-[10px]">{activeTool.replace("-", " ")}</span>
-          </div>
-          <div className="px-1.5 py-0.5 rounded-full bg-slate-900/60 border border-slate-800 text-slate-300">
-            {Math.round(zoom * 100)}%
-          </div>
+
+        <div className="flex items-center gap-3 text-[10px]">
           {canvasStatus.loading && (
-            <div className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/40 text-blue-200">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-300" />
+            <div className="flex items-center gap-2 px-2 py-1 rounded bg-[#00aaff]/10 border border-[#00aaff]/30">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-[#00aaff] opacity-75 animate-ping" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00aaff]" />
               </span>
-              <span className="font-medium text-[8px] sm:text-[9px]">{canvasStatus.message || "Loading..."}</span>
+              <span className="text-[#00aaff]">{canvasStatus.message || "Loading..."}</span>
             </div>
           )}
-          <div
-            className={`px-1.5 py-0.5 rounded-full border ${
-              isSaved
-                ? "border-emerald-500/40 text-emerald-200 bg-emerald-500/10"
-                : "border-amber-500/40 text-amber-200 bg-amber-500/10"
-            }`}
-          >
-            {isSaved ? "Saved" : "Unsaved"}
+          <div className="flex items-center gap-2 px-2 py-1 rounded bg-[#2a2e38] text-slate-400">
+            <span className="uppercase tracking-wider">Tool:</span>
+            <span className="text-white font-medium capitalize">{activeTool}</span>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 flex overflow-hidden">
-        <AnnotationToolbar
-          activeTool={activeTool}
-          onToolSelect={handleToolSelect}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex overflow-hidden">
+          {/* Canvas Area */}
+          <div className="flex-1 overflow-hidden bg-[#1e2128] relative" data-testid="cad-editor-surface">
+          {/* Grid Pattern Background */}
+          <div 
+            className="absolute inset-0 opacity-[0.03]"
+            style={{
+              backgroundImage: `
+                linear-gradient(to right, #fff 1px, transparent 1px),
+                linear-gradient(to bottom, #fff 1px, transparent 1px)
+              `,
+              backgroundSize: '20px 20px'
+            }}
+          />
+          
+          <CadCanvasEditor
+            ref={canvasRef}
+            pageImage={pageImage}
+            pageDimensions={pageDimensions}
+            pageState={safePageState}
+            onStateChange={handlePageStateChange}
+            activeTool={activeTool}
+            strokeColor={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeStyle={strokeStyle}
+            zoom={zoom}
+            onZoomChange={setZoom}
+            disabled={controlsDisabled}
+            measurementSettings={{ unit: measurementUnit, unitsPerPixel }}
+            activeLayerId={currentLayerState.activeLayerId}
+            hiddenLayerIds={hiddenLayerIds}
+          />
+
+        </div>
+
+          {/* Right Properties Panel */}
+          <PropertiesPanel
+          strokeWidth={strokeWidth}
+          setStrokeWidth={setStrokeWidth}
+          strokeColor={strokeColor}
+          setStrokeColor={setStrokeColor}
+          strokeStyle={strokeStyle}
+          setStrokeStyle={setStrokeStyle}
+          measurementUnit={measurementUnit}
+          setMeasurementUnit={setMeasurementUnit}
+          unitsPerPixel={unitsPerPixel}
+          setUnitsPerPixel={setUnitsPerPixel}
+          layers={currentLayerState}
+          activeLayerId={currentLayerState.activeLayerId}
+          onAddLayer={handleAddLayer}
+          onSelectLayer={handleSelectLayer}
+          onToggleLayerVisibility={handleToggleLayerVisibility}
+          zoom={zoom}
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onFitToScreen={handleFitToScreen}
+          currentPage={currentPage}
+          numPages={numPages}
+          onPrevPage={handlePrevPage}
+          onNextPage={handleNextPage}
+          rotation={manualRotation}
+          onRotatePage={handleRotatePage}
           onCopy={handleCopySelection}
           onRotate={handleRotateSelection}
           onScale={handleScaleSelection}
           onSave={handleSave}
           onDownload={handleDownload}
-          onPrevPage={handlePrevPage}
-          onNextPage={handleNextPage}
+          isSaved={isSaved}
+          isAutoSaving={isAutoSaving}
+          disabled={controlsDisabled}
+          totalElements={totalElements}
+        />
+        </div>
+
+        {/* Bottom Toolbar */}
+        <AnnotationToolbar
+          activeTool={activeTool}
+          onToolSelect={handleToolSelect}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          zoom={zoom}
           currentPage={currentPage}
           numPages={numPages}
           disabled={controlsDisabled}
         />
-
-        <section className="flex-1 flex flex-col min-h-0">
-          <div className="h-12 sm:h-13 px-2 sm:px-3 py-1.5 border-b border-slate-900 bg-slate-950/80 backdrop-blur flex items-center justify-between flex-shrink-0 overflow-x-auto gap-2 sm:gap-3">
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] uppercase tracking-wider text-slate-500">Width</span>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[strokeWidth]}
-                    onValueChange={([value]) => setStrokeWidth(value)}
-                    min={1}
-                    max={18}
-                    step={1}
-                    disabled={controlsDisabled}
-                    className="w-32 disabled:opacity-40"
-                    data-testid="stroke-width-slider"
-                    variant="contrast"
-                  />
-                  <span className="text-[10px] font-semibold w-8 text-center">{strokeWidth}px</span>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] uppercase tracking-wider text-slate-500">Style</span>
-                <div className="flex items-center gap-1.5">
-                  {["solid", "dashed", "dotted"].map((style) => (
-                    <Button
-                      key={style}
-                      size="sm"
-                      variant={strokeStyle === style ? "default" : "outline"}
-                      onClick={() => setStrokeStyle(style)}
-                      disabled={controlsDisabled}
-                      className="h-7 text-[10px] capitalize disabled:opacity-50 disabled:cursor-not-allowed px-2"
-                    >
-                      {style}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] uppercase tracking-wider text-slate-500">Color</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={strokeColor}
-                    onChange={(e) => setStrokeColor(e.target.value)}
-                    disabled={controlsDisabled}
-                    className="w-8 h-8 rounded border border-slate-800 bg-slate-900 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                    data-testid="stroke-color-picker"
-                  />
-                  <span className="text-[10px] font-semibold">{strokeColor}</span>
-                </div>
-              </div>
-
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[9px] uppercase tracking-wider text-slate-500">Unit</span>
-              <div className="flex items-center gap-2 text-xs text-slate-300">
-                <label className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded px-2 py-1">
-                  <span className="uppercase tracking-wider text-[9px] text-slate-400">Unit</span>
-                  <select
-                    value={measurementUnit}
-                    onChange={(event) => setMeasurementUnit(event.target.value)}
-                    className="bg-slate-900 text-blue-300 text-[10px] font-semibold uppercase focus:outline-none rounded px-1 py-0.5"
-                    disabled={controlsDisabled}
-                  >
-                    <option value="mm" className="text-slate-900">mm</option>
-                    <option value="cm" className="text-slate-900">cm</option>
-                    <option value="m" className="text-slate-900">m</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded px-2 py-1">
-                  <span className="uppercase tracking-wider text-[9px] text-slate-400">Scale</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={unitsPerPixel}
-                    onChange={(event) => setUnitsPerPixel(Math.max(parseFloat(event.target.value) || 0, 0.0001))}
-                    className="w-16 bg-slate-900 text-blue-300 text-[10px] font-semibold focus:outline-none rounded px-1 py-0.5"
-                    disabled={controlsDisabled}
-                  />
-                </label>
-              </div>
-            </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col items-end">
-                <span className="text-[9px] uppercase tracking-wider text-slate-500">Elements</span>
-                <span className="text-xs font-semibold">{totalElements}</span>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[9px] uppercase tracking-wider text-slate-500">Page</span>
-                <span className="text-xs font-semibold">
-                  {currentPage}/{numPages}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-hidden bg-slate-900 min-h-0" data-testid="cad-editor-surface">
-            <CadCanvasEditor
-              ref={canvasRef}
-              pageImage={pageImage}
-              pageDimensions={pageDimensions}
-              pageState={currentPageState}
-              onStateChange={handlePageStateChange}
-              activeTool={activeTool}
-              strokeColor={strokeColor}
-              strokeWidth={strokeWidth}
-              strokeStyle={strokeStyle}
-              zoom={zoom}
-              onZoomChange={setZoom}
-              disabled={controlsDisabled}
-              measurementSettings={{ unit: measurementUnit, unitsPerPixel }}
-            />
-          </div>
-        </section>
       </main>
     </div>
   );

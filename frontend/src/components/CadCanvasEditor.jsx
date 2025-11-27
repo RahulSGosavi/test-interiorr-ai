@@ -56,6 +56,8 @@ const CadCanvasEditor = forwardRef(
       onZoomChange,
       disabled = false,
       measurementSettings,
+      activeLayerId,
+      hiddenLayerIds = [],
     },
     ref
   ) => {
@@ -89,6 +91,11 @@ const CadCanvasEditor = forwardRef(
     const scale = zoom || 1;
     const measurementUnit = measurementSettings?.unit ?? "px";
     const unitsPerPixel = measurementSettings?.unitsPerPixel ?? 1;
+    const hiddenLayerSet = useMemo(
+      () => new Set((hiddenLayerIds || []).filter(Boolean)),
+      [hiddenLayerIds]
+    );
+    const fallbackLayerId = useMemo(() => activeLayerId || "layer-default", [activeLayerId]);
 
     const fitStageToContainer = useCallback(() => {
       const container = containerRef.current;
@@ -111,18 +118,30 @@ const CadCanvasEditor = forwardRef(
       return true;
     }, [onZoomChange, pageDimensions?.height, pageDimensions?.width]);
 
-    const applySnapshot = useCallback((snapshot) => {
-      if (!snapshot) {
-        setShapes([]);
-        setStagePosition({ x: 0, y: 0 });
-      } else {
-        setShapes(snapshot.shapes || []);
-        setStagePosition(snapshot.stagePosition || { x: 0, y: 0 });
-      }
-      setSelectedId(null);
-      setDraft(null);
-      setPolygonDraft(null);
-    }, []);
+    const applyLayerFallback = useCallback(
+      (shape) => {
+        if (!shape) return shape;
+        return shape.layerId ? shape : { ...shape, layerId: fallbackLayerId };
+      },
+      [fallbackLayerId]
+    );
+
+    const applySnapshot = useCallback(
+      (snapshot) => {
+        if (!snapshot) {
+          setShapes([]);
+          setStagePosition({ x: 0, y: 0 });
+        } else {
+          const nextShapes = (snapshot.shapes || []).map(applyLayerFallback);
+          setShapes(nextShapes);
+          setStagePosition(snapshot.stagePosition || { x: 0, y: 0 });
+        }
+        setSelectedId(null);
+        setDraft(null);
+        setPolygonDraft(null);
+      },
+      [applyLayerFallback]
+    );
 
     const createSnapshot = useCallback(
       (shapeList, position) => ({
@@ -150,10 +169,11 @@ const CadCanvasEditor = forwardRef(
 
     const commitShapes = useCallback(
       (nextShapes) => {
-        setShapes(nextShapes);
-        pushHistory(nextShapes, stagePosition);
+        const normalizedShapes = nextShapes.map(applyLayerFallback);
+        setShapes(normalizedShapes);
+        pushHistory(normalizedShapes, stagePosition);
       },
-      [pushHistory, stagePosition]
+      [applyLayerFallback, pushHistory, stagePosition]
     );
 
     useEffect(() => {
@@ -165,7 +185,7 @@ const CadCanvasEditor = forwardRef(
         return;
       }
       prevPageStateRef.current = pageState;
-      const baseShapes = pageState?.shapes || [];
+      const baseShapes = (pageState?.shapes || []).map(applyLayerFallback);
       const baseStage = pageState?.stagePosition || { x: 0, y: 0 };
       const snapshot = createSnapshot(baseShapes, baseStage);
       setShapes(snapshot.shapes);
@@ -178,7 +198,7 @@ const CadCanvasEditor = forwardRef(
       lastOutboundSnapshotRef.current = snapshot;
       eraserRemovedRef.current = false;
       eraserResultRef.current = null;
-    }, [createSnapshot, pageState]);
+    }, [applyLayerFallback, createSnapshot, pageState]);
 
     const formatDistance = useCallback(
       (distancePx) => {
@@ -230,6 +250,14 @@ const CadCanvasEditor = forwardRef(
     useEffect(() => {
       shapesRef.current = shapes;
     }, [shapes]);
+
+    useEffect(() => {
+      if (!selectedId) return;
+      const selectedShape = shapes.find((shape) => shape.id === selectedId);
+      if (selectedShape && selectedShape.layerId && hiddenLayerSet.has(selectedShape.layerId)) {
+        setSelectedId(null);
+      }
+    }, [hiddenLayerSet, selectedId, shapes]);
 
     useEffect(() => {
       const updateContainerSize = () => {
@@ -643,40 +671,25 @@ const CadCanvasEditor = forwardRef(
           });
           break;
         case "polygon":
+          // Click to add points - all lines dashed while drawing
+          // Double-click to finish and convert to solid lines (like 2020 Design)
           setPolygonDraft((prev) => {
             if (!prev) {
-              // Starting a new polygon
-              return { id: base.id, base, points: [point] };
+              // Start new polygon with first point
+              return { 
+                id: base.id, 
+                base, 
+                points: [point],
+                cursor: point,
+              };
             }
             
-            // Check if clicking near the first point to close the polygon
-            if (prev.points.length >= 3) {
-              const firstPoint = prev.points[0];
-              const distance = Math.hypot(point.x - firstPoint.x, point.y - firstPoint.y);
-              const closeThreshold = 10; // pixels
-              
-              if (distance < closeThreshold) {
-                // Close the polygon by committing it
-                const pointsArray = prev.points.flatMap((p) => [p.x, p.y]);
-                commitShapes([
-                  ...shapes,
-                  {
-                    type: "polygon",
-                    id: prev.id,
-                    stroke: prev.base.stroke,
-                    strokeWidth: prev.base.strokeWidth,
-                    dash: prev.base.dash,
-                    x: 0,
-                    y: 0,
-                    points: pointsArray,
-                  },
-                ]);
-                return null; // Clear the draft
-              }
-            }
-            
-            // Add the new point
-            return { ...prev, points: [...prev.points, point] };
+            // Add new point on each click
+            return {
+              ...prev,
+              points: [...prev.points, point],
+              cursor: point,
+            };
           });
           break;
         case "eraser":
@@ -729,16 +742,14 @@ const CadCanvasEditor = forwardRef(
                 },
               };
             case "free":
-              // For smooth free drawing on touch devices, add points more frequently
-              // but only if the point has moved significantly (reduces jitter)
-              const lastPoint = shape.points.length >= 2 
+              // For smooth freehand drawing
+              const lastPointFree = shape.points.length >= 2 
                 ? { x: shape.points[shape.points.length - 2], y: shape.points[shape.points.length - 1] }
                 : null;
               
-              // Add point if it's far enough from the last point (smoother on tablets)
-              const minDistance = 2; // Minimum distance between points for smooth drawing
-              if (!lastPoint || 
-                  Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) >= minDistance) {
+              const minDistanceFree = 2;
+              if (!lastPointFree || 
+                  Math.hypot(point.x - lastPointFree.x, point.y - lastPointFree.y) >= minDistanceFree) {
                 return {
                   ...prev,
                   shape: {
@@ -900,6 +911,15 @@ const CadCanvasEditor = forwardRef(
           return;
         }
 
+        // Handle polygon cursor tracking for preview line
+        if (activeTool === "polygon" && polygonDraft) {
+          const pointer = getPointer(stage);
+          setPolygonDraft((prev) => {
+            if (!prev) return prev;
+            return { ...prev, cursor: pointer };
+          });
+        }
+
         // Handle eraser drawing
         if (isErasing && activeTool === "eraser") {
           const point = getPointer(stage);
@@ -958,6 +978,28 @@ const CadCanvasEditor = forwardRef(
     const handleDoubleClick = useCallback(
       (evt) => {
         if (disabled) return;
+        
+        // Double-click to finish polygon - converts dashed to solid lines
+        if (activeTool === "polygon" && polygonDraft && polygonDraft.points.length >= 2) {
+          const pointsArray = polygonDraft.points.flatMap((p) => [p.x, p.y]);
+          commitShapes([
+            ...shapes,
+            {
+              type: "polygon",
+              id: polygonDraft.id,
+              stroke: polygonDraft.base.stroke,
+              strokeWidth: polygonDraft.base.strokeWidth,
+              dash: polygonDraft.base.dash, // Uses original dash setting (solid if none)
+              x: 0,
+              y: 0,
+              points: pointsArray,
+              layerId: fallbackLayerId,
+            },
+          ]);
+          setPolygonDraft(null);
+          return;
+        }
+        
         if (activeTool === "select") {
           const node = evt?.target;
           if (!node) return;
@@ -976,7 +1018,7 @@ const CadCanvasEditor = forwardRef(
           }
         }
       },
-      [activeTool, disabled, openTextEditor, shapes]
+      [activeTool, commitShapes, disabled, fallbackLayerId, openTextEditor, polygonDraft, shapes]
     );
 
     const handleWheel = useCallback(
@@ -1006,26 +1048,6 @@ const CadCanvasEditor = forwardRef(
     );
 
     useEffect(() => {
-      if (activeTool !== "polygon") {
-        // Commit polygon before clearing if it has enough points
-        if (polygonDraft && polygonDraft.points && polygonDraft.points.length >= 3) {
-          const pointsArray = polygonDraft.points.flatMap((p) => [p.x, p.y]);
-          commitShapes([
-            ...shapes,
-            {
-              type: "polygon",
-              id: polygonDraft.id,
-              stroke: polygonDraft.base.stroke,
-              strokeWidth: polygonDraft.base.strokeWidth,
-              dash: polygonDraft.base.dash,
-              x: 0,
-              y: 0,
-              points: pointsArray,
-            },
-          ]);
-        }
-        setPolygonDraft(null);
-      }
       if (activeTool !== "select") {
         setSelectedId(null);
       }
@@ -1039,7 +1061,32 @@ const CadCanvasEditor = forwardRef(
         setIsErasing(false);
         setEraserCursor(null);
       }
-    }, [activeTool, commitShapes, polygonDraft, shapes]);
+      // Commit polygon when switching away from polygon tool
+      if (activeTool !== "polygon" && polygonDraft && polygonDraft.points.length >= 3) {
+        const pointsArray = polygonDraft.points.flatMap((p) => [p.x, p.y]);
+        commitShapes([
+          ...shapes,
+          {
+            type: "polygon",
+            id: polygonDraft.id,
+            stroke: polygonDraft.base.stroke,
+            strokeWidth: polygonDraft.base.strokeWidth,
+            dash: polygonDraft.base.dash,
+            x: 0,
+            y: 0,
+            points: pointsArray,
+            layerId: fallbackLayerId,
+          },
+        ]);
+        setPolygonDraft(null);
+      } else if (activeTool !== "polygon") {
+        setPolygonDraft(null);
+      }
+      // Clear any active draft when switching tools
+      if (draft) {
+        setDraft(null);
+      }
+    }, [activeTool]);
 
     useImperativeHandle(
       ref,
@@ -1233,7 +1280,12 @@ const CadCanvasEditor = forwardRef(
 
     const renderedShapes = useMemo(
       () =>
-        shapes.map((shape) => {
+        shapes
+          .filter((shape) => {
+            if (!shape?.layerId) return true;
+            return !hiddenLayerSet.has(shape.layerId);
+          })
+          .map((shape) => {
           if (shape.type === "ruler") {
             const draggable = !disabled && activeTool === "select";
             return (
@@ -1405,8 +1457,8 @@ const CadCanvasEditor = forwardRef(
             default:
               return null;
           }
-        }),
-      [activeTool, disabled, handleDragEnd, handleMeasurementDragEnd, handleTransformEnd, shapes]
+          }),
+      [activeTool, disabled, handleDragEnd, handleMeasurementDragEnd, handleTransformEnd, hiddenLayerSet, shapes]
     );
 
     if (!pageImage || !pageDimensions?.width) {
@@ -1446,14 +1498,6 @@ const CadCanvasEditor = forwardRef(
           </Layer>
           <Layer>
             {renderedShapes}
-            {polygonDraft && (
-              <Line
-                points={polygonDraft.points.flatMap((p) => [p.x, p.y])}
-                stroke={polygonDraft.base.stroke}
-                strokeWidth={polygonDraft.base.strokeWidth}
-                dash={polygonDraft.base.dash}
-              />
-            )}
             {rulerDraft && rulerDraft.start && rulerDraft.cursor && (
               <>
                 <Line
@@ -1513,6 +1557,87 @@ const CadCanvasEditor = forwardRef(
                   />
                 )}
                 <Circle x={angleDraft.vertex.x} y={angleDraft.vertex.y} radius={5} fill={strokeColor} opacity={0.9} listening={false} />
+              </>
+            )}
+            {/* Polygon draft - dotted lines while drawing, double-click to finish */}
+            {polygonDraft && polygonDraft.points.length > 0 && (
+              <>
+                {/* Dotted construction lines */}
+                {polygonDraft.points.length >= 2 && (
+                  <Line
+                    points={polygonDraft.points.flatMap((p) => [p.x, p.y])}
+                    stroke={polygonDraft.base.stroke}
+                    strokeWidth={2}
+                    dash={[4, 4]}
+                    opacity={0.8}
+                    listening={false}
+                  />
+                )}
+                {/* Active line from last point to cursor */}
+                {polygonDraft.cursor && (
+                  <Line
+                    points={[
+                      polygonDraft.points[polygonDraft.points.length - 1].x,
+                      polygonDraft.points[polygonDraft.points.length - 1].y,
+                      polygonDraft.cursor.x,
+                      polygonDraft.cursor.y,
+                    ]}
+                    stroke={polygonDraft.base.stroke}
+                    strokeWidth={2}
+                    dash={[4, 4]}
+                    opacity={0.8}
+                    listening={false}
+                  />
+                )}
+                {/* Closing preview line */}
+                {polygonDraft.cursor && polygonDraft.points.length >= 2 && (
+                  <Line
+                    points={[
+                      polygonDraft.cursor.x,
+                      polygonDraft.cursor.y,
+                      polygonDraft.points[0].x,
+                      polygonDraft.points[0].y,
+                    ]}
+                    stroke={polygonDraft.base.stroke}
+                    strokeWidth={1}
+                    dash={[2, 4]}
+                    opacity={0.4}
+                    listening={false}
+                  />
+                )}
+                {/* Vertex markers - squares like CAD */}
+                {polygonDraft.points.map((p, i) => (
+                  <Rect
+                    key={i}
+                    x={p.x - 4}
+                    y={p.y - 4}
+                    width={8}
+                    height={8}
+                    fill="#ffffff"
+                    stroke={polygonDraft.base.stroke}
+                    strokeWidth={1}
+                    listening={false}
+                  />
+                ))}
+                {/* Cursor crosshair */}
+                {polygonDraft.cursor && (
+                  <>
+                    <Line
+                      points={[polygonDraft.cursor.x - 10, polygonDraft.cursor.y, polygonDraft.cursor.x + 10, polygonDraft.cursor.y]}
+                      stroke={polygonDraft.base.stroke}
+                      strokeWidth={1}
+                      opacity={0.6}
+                      listening={false}
+                    />
+                    <Line
+                      points={[polygonDraft.cursor.x, polygonDraft.cursor.y - 10, polygonDraft.cursor.x, polygonDraft.cursor.y + 10]}
+                      stroke={polygonDraft.base.stroke}
+                      strokeWidth={1}
+                      opacity={0.6}
+                      listening={false}
+                    />
+                  </>
+                )}
               </>
             )}
             {draft &&
