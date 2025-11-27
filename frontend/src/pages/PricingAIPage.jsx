@@ -1,14 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { filesAPI, pricingAIAPI } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Send, Brain, FileText, Loader2, Home, Menu } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Send, Bot, User, FileSpreadsheet, Loader2, Home, Menu, X } from 'lucide-react';
 
 const PricingAIPage = () => {
   const { fileId } = useParams();
@@ -16,283 +13,268 @@ const PricingAIPage = () => {
   const [file, setFile] = useState(null);
   const [question, setQuestion] = useState('');
   const [provider, setProvider] = useState('gemini');
-  const [conversation, setConversation] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
     loadFile();
   }, [fileId]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
   const loadFile = async () => {
     try {
-      const response = await filesAPI.getOne(fileId);
-      setFile(response.data);
-    } catch (error) {
+      const res = await filesAPI.getOne(fileId);
+      setFile(res.data);
+    } catch {
       toast.error('Failed to load file');
     }
   };
 
-  const handleAskQuestion = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!question.trim()) return;
+    if (!question.trim() || loading) return;
 
-    const userMessage = { role: 'user', content: question };
-    setConversation((prev) => [...prev, userMessage]);
+    const userMsg = { role: 'user', content: question };
+    setMessages(prev => [...prev, userMsg]);
     setQuestion('');
     setLoading(true);
 
     try {
-      const response = await pricingAIAPI.query({
+      const res = await pricingAIAPI.query({
         file_id: fileId,
         question,
         provider,
       });
-
-      const aiMessage = {
+      setMessages(prev => [...prev, {
         role: 'assistant',
-        content: response.data.response,
-        table: response.data.table,
-        provider: response.data.provider,
-      };
-      setConversation((prev) => [...prev, aiMessage]);
-    } catch (error) {
-      toast.error('Failed to get AI response');
-      setConversation((prev) => [
-        ...prev,
-        { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' },
-      ]);
+        content: res.data.response,
+        table: res.data.table
+      }]);
+    } catch {
+      toast.error('Failed to get response');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, something went wrong. Please try again.'
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const suggestedQuestions = [
-    'What is the total cost of all items?',
-    'List all unique cabinet codes',
+  const suggestions = [
+    'What is the price of W3630 BUTT?',
+    'Show all base cabinet prices',
     'What is the highest priced item?',
-    'Show me items with cost over $10,000',
-    'Summarize the pricing by category',
+    'List all SKUs',
   ];
 
   return (
-    <div className="flex flex-col bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50" style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      {/* Compact Header */}
-      <header className="backdrop-blur-xl bg-white/80 border-b border-white/20 shadow-lg flex-shrink-0" style={{ minHeight: '44px', maxHeight: '50px' }}>
-        <div className="w-full px-2 sm:px-3 py-1.5">
-          <div className="flex items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate("/")} 
-                className="h-7 px-1.5 hover:bg-white/60"
-              >
-                <Home className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                <span className="hidden md:inline ml-1 text-[10px] sm:text-xs">Home</span>
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate(`/file/${fileId}`)} 
-                className="h-7 px-1.5 hover:bg-white/60"
-              >
-                <Menu className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                <span className="hidden md:inline ml-1 text-[10px] sm:text-xs">Menu</span>
-              </Button>
-              <div className="h-4 w-px bg-gray-300 hidden sm:block" />
-              <div className="flex items-center gap-1 min-w-0 flex-1">
-                <div className="p-1 sm:p-1.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-md">
-                  <Brain className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h1 className="text-[10px] sm:text-xs font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent truncate">
-                    Pricing AI
-                  </h1>
-                  <p className="text-[8px] sm:text-[10px] text-gray-500 truncate">{file?.name}</p>
-                </div>
-              </div>
+    <div className="h-screen w-screen flex flex-col bg-gray-50 overflow-hidden">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-600">
+            <Home className="w-4 h-4" />
+          </Button>
+          <div className="hidden sm:block h-5 w-px bg-gray-300" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Bot className="w-4 h-4 text-white" />
             </div>
-            <Select value={provider} onValueChange={setProvider}>
-              <SelectTrigger className="w-18 sm:w-20 h-7 text-[9px] sm:text-[10px] shadow-sm" data-testid="provider-select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gemini" className="text-[10px] sm:text-xs">Gemini</SelectItem>
-                <SelectItem value="openai" className="text-[10px] sm:text-xs">GPT-4o</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="hidden sm:block">
+              <h1 className="text-sm font-semibold text-gray-900">Pricing AI</h1>
+              <p className="text-xs text-gray-500 truncate max-w-[200px]">{file?.name}</p>
+            </div>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={provider} onValueChange={setProvider}>
+            <SelectTrigger className="w-24 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gemini">Gemini</SelectItem>
+              <SelectItem value="openai">GPT-4</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
+            <Menu className="w-4 h-4" />
+          </Button>
         </div>
       </header>
 
-      {/* Chat Container - Uses remaining height */}
-      <main className="flex-1 w-full px-2 sm:px-3 py-1.5 sm:py-2 overflow-hidden" style={{ minHeight: 0 }}>
-        <div className="h-full max-w-5xl mx-auto flex gap-2 sm:gap-3 overflow-hidden">
-          {/* Modern Sidebar - Hidden on Mobile */}
-          <div className="w-56 lg:w-64 flex-shrink-0 hidden lg:block overflow-y-auto">
-            <div className="bg-white/70 backdrop-blur-xl rounded-xl lg:rounded-2xl border border-white/20 shadow-lg lg:shadow-xl p-3 lg:p-4 sticky top-0">
-              <h3 className="text-sm font-bold text-gray-800 mb-3">File Information</h3>
-              <div className="space-y-2.5 text-sm">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">File Name</p>
-                  <p className="font-semibold text-xs break-words text-gray-800">{file?.name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Type</p>
-                  <p className="font-semibold text-xs text-gray-800">{file?.file_type?.toUpperCase()}</p>
-                </div>
-                {file?.meta?.sheet_count && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Sheets</p>
-                    <p className="font-semibold text-xs text-gray-800">{file.meta.sheet_count}</p>
-                  </div>
-                )}
-                {file?.meta?.page_count && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Pages</p>
-                    <p className="font-semibold text-xs text-gray-800">{file.meta.page_count}</p>
-                  </div>
-                )}
-              </div>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar - Desktop */}
+        <aside className="hidden lg:block w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto">
+          <SidebarContent file={file} suggestions={suggestions} onSelect={setQuestion} />
+        </aside>
 
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <p className="text-xs font-bold text-gray-700 mb-2"> Suggested Questions</p>
-                <div className="space-y-2">
-                  {suggestedQuestions.map((q, idx) => (
+        {/* Sidebar - Mobile */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-black/30" onClick={() => setSidebarOpen(false)} />
+            <aside className="absolute left-0 top-0 bottom-0 w-72 bg-white p-4 overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <span className="font-semibold">Info</span>
+                <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <SidebarContent file={file} suggestions={suggestions} onSelect={(q) => { setQuestion(q); setSidebarOpen(false); }} />
+            </aside>
+          </div>
+        )}
+
+        {/* Chat Area */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-4">
+                  <Bot className="w-8 h-8 text-blue-600" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">Pricing AI Assistant</h2>
+                <p className="text-sm text-gray-500 mb-6 max-w-sm">
+                  Ask questions about your pricing data. I'll find the exact prices from your file.
+                </p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {suggestions.slice(0, 3).map((s, i) => (
                     <button
-                      key={idx}
-                      onClick={() => setQuestion(q)}
-                      className="w-full text-left text-[11px] p-2 rounded-lg bg-gradient-to-br from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border border-purple-100 transition-all duration-200 hover:scale-[1.02] hover:shadow-md text-gray-700"
+                      key={i}
+                      onClick={() => setQuestion(s)}
+                      className="text-xs px-3 py-2 bg-white border border-gray-200 rounded-full hover:border-blue-400 hover:text-blue-600 transition"
                     >
-                      {q}
+                      {s}
                     </button>
                   ))}
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* 3D Chat Area */}
-          <div className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
-            {/* 3D Glass Chat Card */}
-            <div className="flex flex-col bg-white/70 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 shadow-xl overflow-hidden" style={{ height: '100%' }}>
-            {/* Chat Title */}
-            <div className="flex-shrink-0 px-2 sm:px-3 py-1.5 sm:py-2 border-b border-gray-100/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50">
-              <h2 className="text-[10px] sm:text-xs font-semibold text-gray-800">AI Assistant</h2>
-            </div>
-            
-            {/* Messages Area - Scrollable */}
-            <div className="flex-1 overflow-y-auto px-2 sm:px-2.5 py-1.5 sm:py-2 space-y-1.5 sm:space-y-2" style={{ minHeight: 0 }} data-testid="conversation-container">
-                  {conversation.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                      <div className="p-3 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl mb-3 shadow-md">
-                        <Brain className="w-10 h-10 sm:w-12 sm:h-12 text-purple-600" />
-                      </div>
-                      <h3 className="text-sm sm:text-base font-bold text-gray-800 mb-1">Ask me anything</h3>
-                      <p className="text-xs text-gray-500">Analyze costs & data</p>
+            ) : (
+              messages.map((msg, i) => (
+                <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'assistant' && (
+                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Bot className="w-4 h-4 text-white" />
                     </div>
-                  ) : (
-                    <>
-                      {conversation.map((msg, idx) => (
-                        <motion.div
-                          key={idx}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                          data-testid={`message-${idx}`}
-                        >
-                          <div
-                            className={`max-w-[85%] sm:max-w-[75%] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-md ${
-                              msg.role === 'user'
-                                ? 'bg-gradient-to-br from-purple-500 to-pink-600 text-white'
-                                : 'bg-white text-gray-800 border border-gray-100'
-                            }`}
-                          >
-                            <p className="text-xs sm:text-sm leading-snug whitespace-pre-wrap break-words">{msg.content}</p>
-                            {msg.table && msg.table.length > 0 && (
-                              <div className="mt-2 overflow-x-auto bg-black/5 rounded p-1.5" data-testid={`message-table-${idx}`}>
-                                <table className="min-w-full text-[10px] sm:text-xs">
-                                  <thead>
-                                    <tr className="border-b border-gray-300">
-                                      {Object.keys(msg.table[0]).map((key) => (
-                                        <th key={key} className="px-1.5 py-1 text-left font-semibold">
-                                          {key}
-                                        </th>
-                                      ))}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {msg.table.map((row, rowIdx) => (
-                                      <tr key={rowIdx} className="border-b border-gray-200/50">
-                                        {Object.values(row).map((val, colIdx) => (
-                                          <td key={colIdx} className="px-1.5 py-1">
-                                            {val}
-                                          </td>
-                                        ))}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
-                        </motion.div>
-                      ))}
-                      {loading && (
-                        <div className="flex justify-start" data-testid="loading-indicator">
-                          <div className="bg-white rounded-xl px-3 py-2 shadow-md border border-gray-100">
-                            <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
-                          </div>
-                        </div>
-                      )}
-                    </>
                   )}
-              </div>
-
-              {/* Input - Always Visible - Multi-line support with Shift+Enter */}
-              <div className="flex-shrink-0 border-t border-gray-100/50 p-1.5 sm:p-2 bg-white/50">
-                <form onSubmit={handleAskQuestion} className="flex flex-col gap-1.5">
-                  <div className="flex gap-1.5">
-                    <Textarea
-                      placeholder="Ask about costs... (Shift+Enter for new line, Enter to send)"
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
-                      onKeyDown={(e) => {
-                        // Allow Shift+Enter for new line
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          if (!loading && question.trim()) {
-                            handleAskQuestion(e);
-                          }
-                        }
-                        // Shift+Enter allows new line (default behavior)
-                      }}
-                      disabled={loading}
-                      className="flex-1 min-h-[32px] max-h-[120px] text-[11px] sm:text-xs px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white border-gray-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-none"
-                      rows={1}
-                      data-testid="question-input"
-                    />
-                    <Button
-                      type="submit"
-                      disabled={loading || !question.trim()}
-                      className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-md disabled:opacity-50 self-end"
-                      data-testid="send-question-button"
-                    >
-                      <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </Button>
+                  <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    msg.role === 'user' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-white border border-gray-200 text-gray-800'
+                  }`}>
+                    <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+                    {msg.table && msg.table.length > 0 && (
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="text-xs w-full">
+                          <thead>
+                            <tr className="border-b">
+                              {Object.keys(msg.table[0]).map(k => (
+                                <th key={k} className="px-2 py-1 text-left font-medium">{k}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {msg.table.map((row, ri) => (
+                              <tr key={ri} className="border-b last:border-0">
+                                {Object.values(row).map((v, ci) => (
+                                  <td key={ci} className="px-2 py-1">{v}</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-[9px] sm:text-[10px] text-gray-500 px-1">
-                    💡 Tip: Press Shift+Enter for new line, Enter to send multiple questions
-                  </p>
-                </form>
+                  {msg.role === 'user' && (
+                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-gray-600" />
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+            {loading && (
+              <div className="flex gap-3">
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3">
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                </div>
               </div>
-            </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
-        </div>
-      </main>
+
+          {/* Input */}
+          <div className="border-t border-gray-200 bg-white p-4">
+            <form onSubmit={handleSubmit} className="max-w-3xl mx-auto flex gap-2">
+              <Textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                placeholder="Ask about pricing..."
+                disabled={loading}
+                className="flex-1 min-h-[44px] max-h-[120px] resize-none text-sm"
+                rows={1}
+              />
+              <Button type="submit" disabled={loading || !question.trim()} className="h-11 w-11 bg-blue-600 hover:bg-blue-700">
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </Button>
+            </form>
+          </div>
+        </main>
+      </div>
     </div>
   );
 };
 
+const SidebarContent = ({ file, suggestions, onSelect }) => (
+  <>
+    <div className="mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+        <span className="text-sm font-medium">File Info</span>
+      </div>
+      <div className="space-y-2 text-xs">
+        <div className="p-2 bg-gray-50 rounded-lg">
+          <span className="text-gray-500">Name</span>
+          <p className="font-medium truncate">{file?.name}</p>
+        </div>
+        <div className="p-2 bg-gray-50 rounded-lg">
+          <span className="text-gray-500">Type</span>
+          <p className="font-medium">{file?.file_type?.toUpperCase()}</p>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p className="text-xs font-medium text-gray-500 mb-2 uppercase">Suggestions</p>
+      <div className="space-y-2">
+        {suggestions.map((s, i) => (
+          <button
+            key={i}
+            onClick={() => onSelect(s)}
+            className="w-full text-left text-xs p-2 bg-gray-50 hover:bg-blue-50 rounded-lg transition"
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  </>
+);
+
 export default PricingAIPage;
+
