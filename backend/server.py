@@ -25,7 +25,7 @@ from database import get_db, Base, engine
 from models import User, Project, File as DBFile, Annotation, Message, Folder, DocumentChunk
 from schemas import (
     UserCreate, UserLogin, UserResponse, Token,
-    ProjectCreate, ProjectResponse,
+    ProjectCreate, ProjectUpdate, ProjectResponse,
     FileCreate, FileResponse,
     AnnotationCreate, AnnotationResponse,
     MessageCreate, MessageResponse,
@@ -96,6 +96,29 @@ def ensure_folder_schema():
         logger.warning(f"Error ensuring folder schema: {e}")
 
 
+def ensure_project_status_column():
+    """Ensure projects table has status column."""
+    try:
+        with engine.begin() as connection:
+            inspector = inspect(connection)
+            try:
+                project_columns = {col['name'] for col in inspector.get_columns('projects')}
+                if 'status' not in project_columns:
+                    logger.info("Adding 'status' column to projects table...")
+                    if engine.url.drivername == 'sqlite':
+                        connection.execute(text("ALTER TABLE projects ADD COLUMN status VARCHAR DEFAULT 'draft'"))
+                    else:
+                        connection.execute(text("ALTER TABLE projects ADD COLUMN status VARCHAR DEFAULT 'draft'"))
+                    # Update existing projects to have 'draft' status
+                    connection.execute(text("UPDATE projects SET status = 'draft' WHERE status IS NULL"))
+                    logger.info("✅ Added 'status' column to projects table")
+            except Exception as e:
+                if 'already exists' not in str(e).lower() and 'duplicate column' not in str(e).lower():
+                    logger.warning(f"Error ensuring project status column: {e}")
+    except Exception as e:
+        logger.warning(f"Error ensuring project status column: {e}")
+
+
 def safe_str(value: Any) -> str:
     """Safely convert any value to string for startswith usage."""
     if isinstance(value, str):
@@ -113,6 +136,7 @@ def safe_str(value: Any) -> str:
 
 
 ensure_folder_schema()
+ensure_project_status_column()
 
 # Security
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -292,7 +316,8 @@ def create_project(
         db_project = Project(
             owner_id=current_user.id,
             name=project_data.name,
-            description=project_data.description
+            description=project_data.description,
+            status="draft"  # New projects default to draft
         )
         db.add(db_project)
         db.commit()
@@ -307,6 +332,7 @@ def create_project(
                 name=db_project.name,  # type: ignore[arg-type]
                 description=db_project.description,  # type: ignore[arg-type]
                 owner_id=db_project.owner_id,  # type: ignore[arg-type]
+                status=getattr(db_project, 'status', 'draft') or 'draft',  # type: ignore[arg-type]
                 created_at=db_project.created_at,  # type: ignore[arg-type]
                 updated_at=getattr(db_project, 'updated_at', None)
             )
@@ -317,11 +343,15 @@ def create_project(
 
 @api_router.get("/projects", response_model=List[ProjectResponse])
 def get_projects(
+    status: Optional[str] = None,  # Filter by status: "draft" or "saved"
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
-        projects = db.query(Project).filter(Project.owner_id == current_user.id).all()
+        query = db.query(Project).filter(Project.owner_id == current_user.id)
+        if status:
+            query = query.filter(Project.status == status)
+        projects = query.all()
         result = []
         for p in projects:
             try:
@@ -336,6 +366,7 @@ def get_projects(
                         name=p.name or "",  # type: ignore[arg-type]
                         description=p.description,  # type: ignore[arg-type]
                         owner_id=p.owner_id,  # type: ignore[arg-type]
+                        status=getattr(p, 'status', 'draft') or 'draft',  # type: ignore[arg-type]
                         created_at=p.created_at,  # type: ignore[arg-type]
                         updated_at=getattr(p, 'updated_at', None)
                     ))
@@ -383,6 +414,46 @@ def delete_project(
     db.delete(project)
     db.commit()
     return {"message": "Project deleted"}
+
+@api_router.patch("/projects/{project_id}", response_model=ProjectResponse)
+def update_project(
+    project_id: int,
+    project_data: ProjectUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    project = db.query(Project).filter(
+        and_(Project.id == project_id, Project.owner_id == current_user.id)
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Update fields if provided
+    if project_data.name is not None:
+        project.name = project_data.name
+    if project_data.description is not None:
+        project.description = project_data.description
+    if project_data.status is not None:
+        if project_data.status not in ["draft", "saved"]:
+            raise HTTPException(status_code=400, detail="Status must be 'draft' or 'saved'")
+        project.status = project_data.status
+    
+    db.commit()
+    db.refresh(project)
+    
+    try:
+        return ProjectResponse.model_validate(project)
+    except Exception as e:
+        logger.error(f"Error validating project response: {e}", exc_info=True)
+        return ProjectResponse(
+            id=project.id,  # type: ignore[arg-type]
+            name=project.name,  # type: ignore[arg-type]
+            description=project.description,  # type: ignore[arg-type]
+            owner_id=project.owner_id,  # type: ignore[arg-type]
+            status=getattr(project, 'status', 'draft') or 'draft',  # type: ignore[arg-type]
+            created_at=project.created_at,  # type: ignore[arg-type]
+            updated_at=getattr(project, 'updated_at', None)
+        )
 
 # ===== Folder Routes =====
 @api_router.post("/projects/{project_id}/folders", response_model=FolderResponse)

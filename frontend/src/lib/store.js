@@ -10,8 +10,9 @@ const useStore = create((set) => ({
     set({ token });
   },
   logout: () => {
-    localStorage.removeItem('token');
-    set({ user: null, token: null });
+    // Clear all localStorage on logout
+    localStorage.clear();
+    set({ user: null, token: null, currentProject: null, currentFolder: null, currentFile: null });
   },
   
   // Current project/folder/file

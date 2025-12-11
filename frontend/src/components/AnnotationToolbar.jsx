@@ -47,6 +47,7 @@ const toolGroups = [
     name: 'Draw',
     tools: [
       { id: 'rectangle', icon: Square, label: 'Rectangle', shortcut: 'R' },
+      { id: 'yellow-rectangle', icon: Square, label: 'Yellow Rectangle', shortcut: 'Y' },
       { id: 'circle', icon: Circle, label: 'Ellipse', shortcut: 'C' },
       { id: 'line', icon: Minus, label: 'Line', shortcut: 'L' },
       { id: 'arrow', icon: ArrowUpRight, label: 'Arrow', shortcut: 'A' },

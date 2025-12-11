@@ -549,12 +549,12 @@ async def query_ai(question: str, context: str, query_type: str, provider: str =
             if not api_key:
                 return "Error: GEMINI_API_KEY not configured"
             
-            genai.configure(api_key=api_key)
+            genai.configure(api_key=api_key)  # type: ignore[attr-defined]
             # Try different model names
             model_names = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-pro']
             for model_name in model_names:
                 try:
-                    model = genai.GenerativeModel(model_name)
+                    model = genai.GenerativeModel(model_name)  # type: ignore[attr-defined]
                     response = model.generate_content(full_prompt)
                     return response.text
                 except Exception as e:
@@ -577,7 +577,8 @@ async def query_ai(question: str, context: str, query_type: str, provider: str =
                 ],
                 temperature=0.1
             )
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            return content if content is not None else "Error: No response content from OpenAI"
         
         else:
             return f"Error: Unknown provider '{provider}'"
@@ -587,7 +588,7 @@ async def query_ai(question: str, context: str, query_type: str, provider: str =
         return f"Error: {str(e)}"
 
 
-async def process_question(file_path: Path, question: str, provider: str = "gemini", original_filename: str = None) -> Dict[str, Any]:
+async def process_question(file_path: Path, question: str, provider: str = "gemini", original_filename: Optional[str] = None) -> Dict[str, Any]:
     """Process a pricing question with proper file type handling."""
     
     try:

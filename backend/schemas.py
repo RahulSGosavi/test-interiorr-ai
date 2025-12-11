@@ -30,9 +30,15 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     pass
 
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None  # "draft" or "saved"
+
 class ProjectResponse(ProjectBase):
     id: int
     owner_id: int
+    status: str = "draft"
     created_at: datetime
     updated_at: Optional[datetime] = None
     

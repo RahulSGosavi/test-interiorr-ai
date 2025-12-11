@@ -354,6 +354,7 @@ const CadCanvasEditor = forwardRef(
       (shape, point, tolerance) => {
         switch (shape.type) {
           case "rect":
+          case "yellow-rect":
             return (
               point.x >= shape.x - tolerance &&
               point.x <= shape.x + shape.width + tolerance &&
@@ -632,6 +633,13 @@ const CadCanvasEditor = forwardRef(
               shape: { ...base, x: point.x, y: point.y, width: 0, height: 0 },
             });
             break;
+          case "yellow-rectangle":
+            setDraft({
+              type: "yellow-rect",
+              origin: point,
+              shape: { ...base, x: point.x, y: point.y, width: 0, height: 0, fill: "#FFFF00" },
+            });
+            break;
           case "circle":
             setDraft({
               type: "circle",
@@ -714,6 +722,7 @@ const CadCanvasEditor = forwardRef(
           const { shape } = prev;
           switch (prev.type) {
             case "rect":
+            case "yellow-rect":
               return {
                 ...prev,
                 shape: {
@@ -773,6 +782,11 @@ const CadCanvasEditor = forwardRef(
         case "rect":
           if (draft.shape.width > 2 && draft.shape.height > 2) {
             commitShapes([...shapes, { type: "rect", ...draft.shape }]);
+          }
+          break;
+        case "yellow-rect":
+          if (draft.shape.width > 2 && draft.shape.height > 2) {
+            commitShapes([...shapes, { type: "yellow-rect", ...draft.shape }]);
           }
           break;
         case "circle":
@@ -1005,16 +1019,24 @@ const CadCanvasEditor = forwardRef(
           if (!node) return;
           const id = node.id?.();
           if (!id) return;
+          
+          // Double-click on text to edit it
           const shape = shapes.find((s) => s.id === id);
-          if (shape?.type === "text") {
-            openTextEditor({
-              id: shape.id,
-              x: shape.x,
-              y: shape.y,
-              value: shape.text || "",
-              fontSize: shape.fontSize || 18,
-              stroke: shape.stroke,
-            });
+          if (shape && shape.type === "text") {
+            const stage = stageRef.current;
+            if (!stage) return;
+            const textNode = stage.findOne(`#${id}`);
+            if (textNode) {
+              openTextEditor({
+                id: shape.id,
+                x: shape.x,
+                y: shape.y,
+                value: shape.text || "",
+                fontSize: shape.fontSize || 18,
+                stroke: shape.stroke,
+              });
+            }
+            return;
           }
         }
       },
@@ -1389,6 +1411,8 @@ const CadCanvasEditor = forwardRef(
           switch (shape.type) {
             case "rect":
               return <Rect key={shape.id} {...common} x={shape.x} y={shape.y} width={shape.width} height={shape.height} />;
+            case "yellow-rect":
+              return <Rect key={shape.id} {...common} x={shape.x} y={shape.y} width={shape.width} height={shape.height} fill={shape.fill || "#FFFF00"} />;
             case "circle":
               return <Circle key={shape.id} {...common} x={shape.x} y={shape.y} radius={shape.radius} />;
             case "line":
@@ -1452,13 +1476,27 @@ const CadCanvasEditor = forwardRef(
                   fontFamily="Arial, Helvetica, sans-serif"
                   fontStyle="normal"
                   fill={shape.stroke}
+                  onDblClick={(e) => {
+                    e.cancelBubble = true;
+                    const clickedShape = shapes.find((s) => s.id === e.target.id());
+                    if (clickedShape) {
+                      openTextEditor({
+                        id: clickedShape.id,
+                        x: clickedShape.x,
+                        y: clickedShape.y,
+                        value: clickedShape.text || "",
+                        fontSize: clickedShape.fontSize || 18,
+                        stroke: clickedShape.stroke,
+                      });
+                    }
+                  }}
                 />
               );
             default:
               return null;
           }
           }),
-      [activeTool, disabled, handleDragEnd, handleMeasurementDragEnd, handleTransformEnd, hiddenLayerSet, shapes]
+      [activeTool, disabled, handleDragEnd, handleMeasurementDragEnd, handleTransformEnd, hiddenLayerSet, shapes, openTextEditor]
     );
 
     if (!pageImage || !pageDimensions?.width) {
@@ -1647,6 +1685,8 @@ const CadCanvasEditor = forwardRef(
                 switch (draft.type) {
                   case "rect":
                     return <Rect {...common} x={shape.x} y={shape.y} width={shape.width} height={shape.height} />;
+                  case "yellow-rect":
+                    return <Rect {...common} x={shape.x} y={shape.y} width={shape.width} height={shape.height} fill="#FFFF00" />;
                   case "circle":
                     return <Circle {...common} x={shape.x} y={shape.y} radius={shape.radius} />;
                   case "line":
@@ -1670,7 +1710,18 @@ const CadCanvasEditor = forwardRef(
                 listening={false}
               />
             )}
-            <Transformer ref={transformerRef} rotateEnabled flipEnabled={false} />
+            <Transformer 
+              ref={transformerRef} 
+              rotateEnabled 
+              flipEnabled={false}
+              boundBoxFunc={(oldBox, newBox) => {
+                // Limit minimum size
+                if (Math.abs(newBox.width) < 5 || Math.abs(newBox.height) < 5) {
+                  return oldBox;
+                }
+                return newBox;
+              }}
+            />
           </Layer>
         </Stage>
         {textEditor && textEditorStyle && (

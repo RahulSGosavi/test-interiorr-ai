@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { FolderOpen, Plus, Trash2, LogOut, Sparkles } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { FolderOpen, Plus, Trash2, LogOut, Sparkles, Save } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -17,15 +18,17 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [newProjectName, setNewProjectName] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('draft'); // 'draft' or 'saved'
 
   useEffect(() => {
     if (!token) return; // wait until token is available to avoid 401
     loadProjects();
-  }, [token]);
+  }, [token, activeTab]);
 
   const loadProjects = async () => {
     try {
-      const response = await projectsAPI.getAll();
+      setLoading(true);
+      const response = await projectsAPI.getAll(activeTab);
       setProjects(response.data);
     } catch (error) {
       toast.error('Failed to load projects');
@@ -58,6 +61,16 @@ const Dashboard = () => {
       loadProjects();
     } catch (error) {
       toast.error('Failed to delete project');
+    }
+  };
+
+  const handleSaveProject = async (id, name) => {
+    try {
+      await projectsAPI.update(id, { status: 'saved' });
+      toast.success(`Project "${name}" saved!`);
+      loadProjects();
+    } catch (error) {
+      toast.error('Failed to save project');
     }
   };
 
@@ -140,60 +153,103 @@ const Dashboard = () => {
           </Dialog>
         </div>
 
-        {loading ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500">Loading projects...</p>
-          </div>
-        ) : projects.length === 0 ? (
-          <div className="text-center py-12" data-testid="no-projects-message">
-            <FolderOpen className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No projects yet</h3>
-            <p className="text-gray-500 mb-6">Create your first project to get started</p>
-            <Button
-              onClick={() => setDialogOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Project
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <Card
-                key={project.id}
-                className="card-hover cursor-pointer border-2 hover:border-blue-500"
-                data-testid={`project-card-${project.id}`}
-              >
-                <CardHeader className="flex flex-row items-start justify-between space-y-0">
-                  <div className="flex-1" onClick={() => navigate(`/project/${project.id}`)}>
-                    <CardTitle className="text-xl" data-testid={`project-name-${project.id}`}>{project.name}</CardTitle>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Created {new Date(project.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
+            <TabsTrigger value="draft">Draft Projects</TabsTrigger>
+            <TabsTrigger value="saved">Saved Projects</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={activeTab}>
+            {loading ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">Loading projects...</p>
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="text-center py-12" data-testid="no-projects-message">
+                <FolderOpen className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-xl font-semibold mb-2">
+                  No {activeTab === 'draft' ? 'draft' : 'saved'} projects yet
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  {activeTab === 'draft' 
+                    ? 'Create your first project to get started' 
+                    : 'Save your draft projects to see them here'}
+                </p>
+                {activeTab === 'draft' && (
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteProject(project.id, project.name);
-                    }}
-                    data-testid={`delete-project-${project.id}`}
+                    onClick={() => setDialogOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
-                    <Trash2 className="w-4 h-4 text-red-500" />
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Project
                   </Button>
-                </CardHeader>
-                <CardContent onClick={() => navigate(`/project/${project.id}`)}>
-                  <div className="flex items-center text-blue-600">
-                    <FolderOpen className="w-5 h-5 mr-2" />
-                    <span>Open Project</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {projects.map((project) => (
+                  <Card
+                    key={project.id}
+                    className="card-hover cursor-pointer border-2 hover:border-blue-500"
+                    data-testid={`project-card-${project.id}`}
+                  >
+                    <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                      <div className="flex-1" onClick={() => navigate(`/project/${project.id}`)}>
+                        <CardTitle className="text-xl" data-testid={`project-name-${project.id}`}>{project.name}</CardTitle>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Created {new Date(project.created_at).toLocaleDateString()}
+                        </p>
+                        {project.status && (
+                          <span className={`inline-block mt-2 px-2 py-1 text-xs rounded-full ${
+                            project.status === 'saved' 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {project.status}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        {activeTab === 'draft' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveProject(project.id, project.name);
+                            }}
+                            data-testid={`save-project-${project.id}`}
+                            title="Save Project"
+                          >
+                            <Save className="w-4 h-4 text-green-600" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteProject(project.id, project.name);
+                          }}
+                          data-testid={`delete-project-${project.id}`}
+                          title="Delete Project"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent onClick={() => navigate(`/project/${project.id}`)}>
+                      <div className="flex items-center text-blue-600">
+                        <FolderOpen className="w-5 h-5 mr-2" />
+                        <span>Open Project</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

@@ -75,7 +75,13 @@ export const authAPI = {
 
 export const projectsAPI = {
   create: (data) => api.post('/projects', data),
-  getAll: () => api.get('/projects'),
+  getAll: (status) => {
+    if (status) {
+      return api.get('/projects', { params: { status } });
+    }
+    return api.get('/projects');
+  },
+  update: (id, data) => api.patch(`/projects/${id}`, data),
   delete: (id) => api.delete(`/projects/${id}`),
 };
 

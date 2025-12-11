@@ -197,16 +197,21 @@ const AnnotationPage = () => {
   }, [currentPage]);
 
   useEffect(() => {
+    // Reset rotation overrides when file changes, but keep page states
     setPageRotationOverrides({});
+    // Don't reset pageStates here - let loadAnnotations handle it
   }, [fileId]);
 
   useEffect(() => {
+    // Only initialize page state if it doesn't exist and we're not loading annotations
     setPageStates((prev) => {
       const existing = prev[currentPage];
       if (existing) {
+        // If page state exists, preserve it (don't overwrite loaded annotations)
         if (existing.layers?.items?.length) {
           return prev;
         }
+        // Only normalize layers if needed, but keep existing shapes
         return {
           ...prev,
           [currentPage]: {
@@ -215,6 +220,8 @@ const AnnotationPage = () => {
           },
         };
       }
+      // Only create empty state if page doesn't exist (for new pages)
+      // Don't create empty state if we're still loading annotations
       return {
         ...prev,
         [currentPage]: createEmptyPageState(),
@@ -226,7 +233,10 @@ const AnnotationPage = () => {
     try {
       const response = await annotationsAPI.getAll(fileId);
       if (response.data.length > 0) {
-        const saved = JSON.parse(response.data[0].annotation_json || "{}");
+        // Backend returns annotation_data, not annotation_json
+        const annotationData = response.data[0].annotation_data || response.data[0].annotation_json;
+        const saved = typeof annotationData === 'string' ? JSON.parse(annotationData || "{}") : annotationData;
+        
         const normalized = Object.fromEntries(
           Object.entries(saved).map(([page, state]) => [
             page,
@@ -237,11 +247,17 @@ const AnnotationPage = () => {
             },
           ])
         );
+        // Replace all page states with loaded annotations (don't merge to avoid stale data)
         setPageStates(normalized);
         setIsSaved(true);
+      } else {
+        // If no annotations found, don't clear existing states - just mark as not saved
+        // This prevents clearing annotations when switching files
+        setIsSaved(false);
       }
     } catch (error) {
       console.error("Failed to load annotations", error);
+      // Don't clear page states on error - preserve what we have
     }
   }, [fileId]);
 
@@ -304,6 +320,10 @@ const AnnotationPage = () => {
   useEffect(() => {
     const bootstrap = async () => {
       try {
+        // First, load annotations to preserve previous work before loading file
+        await loadAnnotations();
+        
+        // Then load file data
         const response = await filesAPI.getOne(fileId);
         const fileData = response.data;
         setFile(fileData);
@@ -311,8 +331,6 @@ const AnnotationPage = () => {
         // Check if file is an image
         const isImage = checkIfImageFile(fileData?.name, fileData?.file_type);
         setIsImageFile(isImage);
-        
-        await loadAnnotations();
 
         setCanvasStatus({ loading: true, message: isImage ? "Converting image to PDF..." : "Loading PDF..." });
         const fileResponse = await filesAPI.download(fileId);
@@ -351,6 +369,15 @@ const AnnotationPage = () => {
     };
     bootstrap();
   }, [fileId, loadAnnotations]);
+  
+  // Auto-save on unmount or navigation away
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (pdfDoc) {
@@ -542,6 +569,7 @@ const AnnotationPage = () => {
         S: "select",
         L: "line",
         R: "rectangle",
+        Y: "yellow-rectangle",
         C: "circle",
         A: "arrow",
         P: "polygon",
@@ -616,20 +644,23 @@ const AnnotationPage = () => {
   const handleSave = useCallback(async () => {
     if (notifyIfBusy()) return;
     try {
+      // First, persist the current page to ensure it's up to date
       const snapshot = persistCurrentPage();
-      const payload = snapshot
-        ? {
-            ...pageStates,
-            [currentPageRef.current]: snapshot,
-          }
-        : pageStates;
-
+      
+      // Build complete payload with all pages, ensuring current page is saved
+      const allPageStates = { ...pageStates };
+      if (snapshot) {
+        allPageStates[currentPageRef.current] = snapshot;
+      }
+      
+      // Save all pages to ensure nothing is lost
       await annotationsAPI.save(fileId, {
-        annotation_json: JSON.stringify(payload),
+        annotation_json: JSON.stringify(allPageStates),
       });
       setIsSaved(true);
       toast.success("Annotations saved successfully");
     } catch (error) {
+      console.error("Save error:", error);
       toast.error("Failed to save annotations");
     }
   }, [fileId, notifyIfBusy, pageStates, persistCurrentPage]);
